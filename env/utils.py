@@ -44,30 +44,37 @@ class CardSuit(str, Enum):
 class RelativePosition(str, Enum):
     LEFT = 'L'
     RIGHT = 'R'
-    OPPOSITE = 'O'
+    OPPOL = 'OL'
+    OPPOR = 'OR'
     SELF = 'S'
 
 class AbsolutePosition(str, Enum):
-    NORTH = 'N'
-    SOUTH = 'S'
-    EAST = 'E'
-    WEST = 'W'
+    # NORTH = 'N'
+    # SOUTH = 'S'
+    # EAST = 'E'
+    # WEST = 'W'
+    # Number order counterclockwise
+    ONE = '1'
+    TWO = '2'
+    THREE = '3'
+    FOUR = '4'
+    FIVE = '5'
 
     def relative_to(self, position: 'AbsolutePosition') -> RelativePosition:
         "Helper function that converts an absolute seat position to a relative seat position."
-        return ['S', 'L', 'O', 'R'][(['N', 'W', 'S', 'E'].index(position) - ['N', 'W', 'S', 'E'].index(self)) % 4]
+        return ['S', 'L', 'OL', 'R', 'OR'][(['1', '2', '3', '4', '5'].index(position) - ['1', '2', '3', '4', '5'].index(self)) % 5]
 
     @property
     def next_position(self):
-        return {'N': AbsolutePosition.WEST, 'W': AbsolutePosition.SOUTH, 'S': AbsolutePosition.EAST, 'E': AbsolutePosition.NORTH}[self]
+        return {'2': AbsolutePosition.THREE, '3': AbsolutePosition.FOUR, '4': AbsolutePosition.FIVE, '5': AbsolutePosition.ONE, '1': AbsolutePosition.TWO}[self]
     
     @property
     def last_position(self):
-        return {'N': AbsolutePosition.EAST, 'W': AbsolutePosition.NORTH, 'S': AbsolutePosition.WEST, 'E': AbsolutePosition.SOUTH}[self]
+        return {'2': AbsolutePosition.ONE, '3': AbsolutePosition.TWO, '4': AbsolutePosition.THREE, '5': AbsolutePosition.FOUR, '1': AbsolutePosition.FIVE}[self]
 
     @classmethod
     def random(self):
-        return random.choice([AbsolutePosition.NORTH, AbsolutePosition.SOUTH, AbsolutePosition.EAST, AbsolutePosition.WEST])
+        return random.choice([AbsolutePosition.ONE, AbsolutePosition.TWO, AbsolutePosition.THREE, AbsolutePosition.FOUR, AbsolutePosition.FIVE])
 
 class Stage(str, Enum):
     declare_stage = 'DECLARE'

@@ -96,6 +96,18 @@ class PlaceAllKittyAction(Action):
     def __repr__(self) -> str:
         return f"Discard({self.cards})"
 
+class NameFriend(Action):
+    "Changes trump suit and swap cards with the kitty."
+    def __init__(self, declaration: Declaration) -> None:
+        self.declaration = declaration
+    def __repr__(self) -> str:
+        return f"ChaodAction({self.declaration})"
+    @property
+    def tensor(self) -> torch.Tensor:
+        "Shape: (6,)"
+        return self.declaration.suit.tensor
+
+
 class ChaodiAction(Action):
     "Changes trump suit and swap cards with the kitty."
     def __init__(self, declaration: Declaration) -> None:

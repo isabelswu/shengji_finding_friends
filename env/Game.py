@@ -11,19 +11,21 @@ from .CardSet import CardSet, MoveType
 import logging
 
 class Game:
-    def __init__(self, dominant_rank=2, dealer_position: AbsolutePosition = None, enable_chaodi = True, enable_combos = False, deck: List[str] = None, is_warmup_game=False, oracle_value=0.0, combo_penalty=0.1, combo_alternation=False) -> None:
+    def __init__(self, dominant_rank=2, dealer_position: AbsolutePosition = None, enable_chaodi = False, enable_combos = False, deck: List[str] = None, is_warmup_game=False, oracle_value=0.0, combo_penalty=0.1, combo_alternation=False) -> None:
         # Player information
         self.hands = {
-            AbsolutePosition.NORTH: CardSet(),
-            AbsolutePosition.SOUTH: CardSet(),
-            AbsolutePosition.WEST: CardSet(),
-            AbsolutePosition.EAST: CardSet()
+            AbsolutePosition.ONE: CardSet(),
+            AbsolutePosition.TWO: CardSet(),
+            AbsolutePosition.THREE: CardSet(),
+            AbsolutePosition.FOUR: CardSet(),
+            AbsolutePosition.FIVE: CardSet()
         }
         self.public_cards = {
-            AbsolutePosition.NORTH: CardSet(),
-            AbsolutePosition.SOUTH: CardSet(),
-            AbsolutePosition.WEST: CardSet(),
-            AbsolutePosition.EAST: CardSet()
+            AbsolutePosition.ONE: CardSet(),
+            AbsolutePosition.TWO: CardSet(),
+            AbsolutePosition.THREE: CardSet(),
+            AbsolutePosition.FOUR: CardSet(),
+            AbsolutePosition.FIVE: CardSet()
         }
         self.unplayed_cards, self.card_list = CardSet.new_deck()
         if is_warmup_game:
@@ -35,7 +37,7 @@ class Game:
 
         # Public game information
         self.round_history: List[Tuple[AbsolutePosition, List[CardSet]]] = []
-        "A list of past rounds, each having the structure (P, [CardSet...]), where P is one of 'N', 'W', 'S', or 'E', and CardSets are in the order they were played (so for instance, element 0 is played by P)."
+        "A list of past rounds, each having the structure (P, [CardSet...]), where P is one of '1', '2', '3', '4', or '5', and CardSets are in the order they were played (so for instance, element 0 is played by P)."
         
         self.stage = Stage.declare_stage
         self.kitty_stage_completed = False # True if the kitty is fixed.
