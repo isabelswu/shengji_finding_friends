@@ -103,8 +103,8 @@ class FriendCard:
 
     @property
     def played(self):
-        return self.ord == Ordinality.FIRST and self.times_played >= 1 or
-               self.ord == Ordinality.SECOND and self.times_played == 2
+        return (self.ord == Ordinality.FIRST and self.times_played >= 1 or
+               (self.ord == Ordinality.SECOND and self.times_played == 2))
 
 def determine_teams(friend_position: AbsolutePosition, dealer_position: AbsolutePosition):
     "Finds the positions of the defending and attacking teams after friend card played."

@@ -3,7 +3,7 @@
 from math import ceil
 import random
 from typing import List, Tuple, Union
-from env.Actions import Action, AppendLeadAction, ChaodiAction, DeclareAction, DontChaodiAction, DontDeclareAction, EndLeadAction, FollowAction, LeadAction, NameFriend, PlaceAllKittyAction, PlaceKittyAction
+from env.Actions import Action, AppendLeadAction, ChaodiAction, DeclareAction, DontChaodiAction, DontDeclareAction, EndLeadAction, FollowAction, LeadAction, NameFriendCard, PlaceAllKittyAction, PlaceKittyAction
 
 from env.Observation import Observation
 from env.utils import *
