@@ -169,6 +169,9 @@ class Game:
         assert actions, f"Agent {position} has no action to choose from!"
 
         # ADD FRIEND CARD OBSERVATION?
+        relative_points: Dict[RelativePosition, int] = {}
+        for abspos, pts in self.individual_points.keys():
+            relative_points[abspos.relative_to(position)] = pts
 
         observation = Observation(
             hand = self.hands[position].copy(),
@@ -179,8 +182,12 @@ class Game:
             declaration = self.declarations[-1].relative_to(position) if self.declarations else None,
             next_declaration_turn = self.current_declaration_turn.relative_to(position) if self.current_declaration_turn else None,
             dealer_position = self.dealer_position.relative_to(position) if self.dealer_position else None,
-            defender_points = self.opponent_points,
+            defender_points = self.defender_points,
             opponent_points = self.opponent_points,
+            individual_points = relative_points
+            friend_found = self.friend_found
+            opponent_team = [p.relative_to(position) for p in self.opponent_team]
+            defender_team = [p.relative_to(position) for p in self.defender_team]
             round_history = [(p.relative_to(position), cards[:]) for p, cards in self.round_history],
             unplayed_cards = self.unplayed_cards.copy(),
             leads_current_trick = self.round_history[-1][0] == position if self.round_history else position == self.dealer_position,
@@ -369,6 +376,9 @@ class Game:
             self.friend_card = action.friend_card
             logging.info(f"Dealer {player_position} named friend card: {self.friend_card}")
             # discourage players from naming cards in the kitty or in their hand?
+
+            self.opponent_team = [AbsolutePosition.ONE, AbsolutePosition.TWO, AbsolutePosition.THREE, AbsolutePosition.FOUR, AbsolutePosition.FIVE].remove(self.dealer_position)
+            self.defender_team = [self.dealer_position]
             self.stage = Stage.main_stage
             if not self.round_history:
                 self.round_history.append((self.dealer_position, []))
