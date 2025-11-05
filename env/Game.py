@@ -129,13 +129,13 @@ class Game:
             assert position == self.dealer_position, "Only dealer acts in naming stage"
             non_dominant_suits = [CardSuit.CLUB, CardSuit.SPADE, CardSuit.HEART, CardSuit.DIAMOND]
             if self.dominant_suit == TrumpSuit.CLUB:
-                nt_suits.remove(CardSuit.CLUB)
+                non_dominant_suits.remove(CardSuit.CLUB)
             elif self.dominant_suit == TrumpSuit.SPADE:
-                nt_suits.remove(CardSuit.SPADE)
+                non_dominant_suits.remove(CardSuit.SPADE)
             elif self.dominant_suit == TrumpSuit.HEART:
-                nt_suits.remove(CardSuit.HEART)
+                non_dominant_suits.remove(CardSuit.HEART)
             elif self.dominant_suit == TrumpSuit.DIAMOND:
-                nt_suits.remove(CardSuit.DIAMOND)
+                non_dominant_suits.remove(CardSuit.DIAMOND)
 
             for suit in non_dominant_suits:
                 for rank in range(2, 15):
@@ -169,7 +169,7 @@ class Game:
         assert actions, f"Agent {position} has no action to choose from!"
 
         # ADD FRIEND CARD OBSERVATION?
-        relative_points: Dict[RelativePosition, int] = {}
+        relative_points: dict[RelativePosition, int] = {}
         for abspos, pts in self.individual_points.keys():
             relative_points[abspos.relative_to(position)] = pts
 
@@ -184,10 +184,10 @@ class Game:
             dealer_position = self.dealer_position.relative_to(position) if self.dealer_position else None,
             defender_points = self.defender_points,
             opponent_points = self.opponent_points,
-            individual_points = relative_points
-            friend_found = self.friend_found
-            opponent_team = [p.relative_to(position) for p in self.opponent_team]
-            defender_team = [p.relative_to(position) for p in self.defender_team]
+            individual_points = relative_points,
+            friend_found = self.friend_found,
+            opponent_team = [p.relative_to(position) for p in self.opponent_team],
+            defender_team = [p.relative_to(position) for p in self.defender_team],
             round_history = [(p.relative_to(position), cards[:]) for p, cards in self.round_history],
             unplayed_cards = self.unplayed_cards.copy(),
             leads_current_trick = self.round_history[-1][0] == position if self.round_history else position == self.dealer_position,
@@ -202,8 +202,7 @@ class Game:
             actual_right=self.hands[position.next_position].copy(),
             actual_opleft=self.hands[position.last_position.last_position].copy(),
             actual_opright=self.hands[position.next_position.next_position].copy(),
-            oracle_value=self.oracle_value
-        )
+            oracle_value=self.oracle_value)
 
         return observation
 

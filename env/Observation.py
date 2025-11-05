@@ -56,7 +56,7 @@ class Observation:
 
         if RelativePosition.SELF in self.defender_team:
             return torch.cat([defenders_points_tensor, opponents_points_tensor])
-        else
+        else:
            return torch.cat([opponents_points_tensor, defenders_points_tensor])
     
     @property
@@ -249,8 +249,7 @@ class Observation:
     
     @property
     def current_dominating_player_index(self):
-        encoding = torch.zeros(4) # first 4 represent which players have played. last 4 represent who's the 
-        biggest
+        encoding = torch.zeros(4) # first 4 represent which players have played. last 4 represent who's the biggest
         if self.round_history and len(self.round_history[-1][1]) > 0:
             winning_index = CardSet.round_winner(self.round_history[-1][1], self.declaration.suit if self.declaration else TrumpSuit.XJ, self.dominant_rank)
             encoding[4 - len(self.round_history[-1][1]) + winning_index] = 1
@@ -261,4 +260,3 @@ class Observation:
             return torch.tensor([1])
         else:
             return torch.tensor([0])
-
