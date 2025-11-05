@@ -7,7 +7,7 @@ from env.utils import LETTER_RANK, AbsolutePosition, Declaration, RelativePositi
 import torch
 
 class Observation:
-    def __init__(self, hand: CardSet, position: AbsolutePosition, actions: List[Action], stage: Stage, dominant_rank: int, declaration: Declaration, next_declaration_turn: RelativePosition, dealer_position: RelativePosition, defender_points: int, opponent_points: int, round_history: List[Tuple[RelativePosition, List[CardSet]]], unplayed_cards: CardSet, leads_current_trick: bool, chaodi_times: List[int], kitty: CardSet = None, is_chaodi_turn = False, perceived_left = CardSet(), perceived_right = CardSet(), perceived_opposite = CardSet(), actual_left = CardSet(), actual_right = CardSet(), actual_opposite = CardSet(), oracle_value=0.0) -> None:
+    def __init__(self, hand: CardSet, position: AbsolutePosition, actions: List[Action], stage: Stage, dominant_rank: int, declaration: Declaration, next_declaration_turn: RelativePosition, dealer_position: RelativePosition, defender_points: int, opponent_points: int, individual_points: Dict[RelativePosition, int], teams_determined: bool, opponent_team: List[RelativePosition], defender_team: List[RelativePosition], round_history: List[Tuple[RelativePosition, List[CardSet]]], unplayed_cards: CardSet, leads_current_trick: bool, chaodi_times: List[int], kitty: CardSet = None, is_chaodi_turn = False, perceived_left = CardSet(), perceived_right = CardSet(), perceived_opleft = CardSet(), perceived_opright = CardSet(), actual_left = CardSet(), actual_right = CardSet(), actual_opleft = CardSet(), actual_opright = CardSet(), oracle_value=0.0) -> None:
         self.hand = hand
         self.position = position
         self.actions = actions
@@ -18,6 +18,10 @@ class Observation:
         self.dealer = dealer_position
         self.defender_points = defender_points
         self.opponent_points = opponent_points
+        self.individual_points = individual_points
+        self.teams_determined = teams_determined
+        self.opponent_team = opponent_team
+        self.defender_team = defender_team
         self.round_history = round_history
         self.unplayed_cards = unplayed_cards
         self.leads_current_round = leads_current_trick # If the player is going to lead the next trick
@@ -25,11 +29,12 @@ class Observation:
         self.kitty = kitty # Only observable to the last person who placed the kitty. In chaodi mode, this might not be the dealer.
         self.perceived_left = perceived_left
         self.perceived_right = perceived_right
-        self.perceived_opposite = perceived_opposite
+        self.perceived_opleft = perceived_opleft
+        self.perceived_opright = perceived_opright
         self.actual_left = actual_left
         self.actual_right = actual_right
-        self.actual_opposite = actual_opposite
-
+        self.actual_opleft = actual_opleft
+        self.actual_opright = actual_opright
         self.historical_rounds = 14 # TODO
         self.oracle_value = oracle_value # Bernoulli variable parameter
         self.is_chaodi_turn = is_chaodi_turn
@@ -122,7 +127,7 @@ class Observation:
         # Note: compatibility issues with legacy models
         return torch.cat([
             self.perceived_right.get_dynamic_tensor(self.dominant_suit, self.dominant_rank),
-            self.perceived_opposite.get_dynamic_tensor(self.dominant_suit, self.dominant_rank),
+            self.perceived_opleft.get_dynamic_tensor(self.dominant_suit, self.dominant_rank),
             self.perceived_left.get_dynamic_tensor(self.dominant_suit, self.dominant_rank)
         ])
     
@@ -130,7 +135,7 @@ class Observation:
     def oracle_cardsets(self):
         perfect_info = torch.cat([
             self.actual_right.get_dynamic_tensor(self.dominant_suit, self.dominant_rank),
-            self.actual_opposite.get_dynamic_tensor(self.dominant_suit, self.dominant_rank),
+            self.actual_opleft.get_dynamic_tensor(self.dominant_suit, self.dominant_rank),
             self.actual_left.get_dynamic_tensor(self.dominant_suit, self.dominant_rank)
         ])
         # Mask using Bernoulli random variables
@@ -147,7 +152,7 @@ class Observation:
 
         trump_card_counts = []
 
-        for cardset in [self.perceived_right, self.perceived_opposite, self.perceived_left]:
+        for cardset in [self.perceived_right, self.perceived_opleft, self.perceived_left]:
             card_vector = torch.zeros(12)
             for i, trump_card in enumerate([diamond_card, club_card, heart_card, spade_card, 'XJ', 'DJ']):
                 card_vector[i * 2 : i * 2 + cardset._cards[trump_card]] = 1

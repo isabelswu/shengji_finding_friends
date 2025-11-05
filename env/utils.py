@@ -80,7 +80,41 @@ class Stage(str, Enum):
     declare_stage = 'DECLARE'
     kitty_stage = 'KITTY'
     chaodi_stage = 'CHAODI'
+    name_stage = 'NAME'
     main_stage = 'PLAY'
+
+class Ordinality(str, Enum):
+    FIRST = '1st'
+    SECOND = '2nd'
+
+class FriendCard:
+    "Contains information about the named friend card."
+    def __init__(self, suit: CardSuit, rank: int, ord: Ordinality):
+        self.suit = suit
+        self.rank = rank
+        self.ord = ord
+        self.times_played = 0
+
+    def __repr__(self) -> str:
+        return f"FriendCard({self.ord} {self.suit} {self.rank})"
+
+    def get_card(self):
+        return LETTER_RANK[self.rank] + self.suit.value
+
+    @property
+    def played(self):
+        return self.ord == Ordinality.FIRST and self.times_played >= 1 or
+               self.ord == Ordinality.SECOND and self.times_played == 2
+
+def determine_teams(friend_position: AbsolutePosition, dealer_position: AbsolutePosition):
+    "Finds the positions of the defending and attacking teams after friend card played."
+    if friend_position == dealer_position:
+        defender_team = [dealer_position] # Dealer played friend card
+    else:
+        defender_team = [dealer_position, friend_position]
+    all_positions = [AbsolutePosition.ONE, AbsolutePosition.TWO, AbsolutePosition.THREE, AbsolutePosition.FOUR, AbsolutePosition.FIVE]
+    attacker_team = [p for p in all_positions if p != friend_position and p!= dealer_position]
+    return defender_team, attacker_team
 
 class Declaration:
     "Contains information about the trump suit being declared."

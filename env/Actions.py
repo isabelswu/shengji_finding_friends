@@ -1,6 +1,6 @@
 # Defines all potential actions that a player can take during a game.
 from .CardSet import CardSet, MoveType
-from .utils import LETTER_RANK, ORDERING, ORDERING_INDEX, CardSuit, Declaration, TrumpSuit, get_rank, get_suit
+from .utils import LETTER_RANK, ORDERING, ORDERING_INDEX, CardSuit, Declaration, TrumpSuit, FriendCard, get_rank, get_suit
 import torch
 
 class Action:
@@ -23,7 +23,6 @@ class DeclareAction(Action):
     def tensor(self) -> torch.Tensor:
         "Shape: (7,)"
         return self.declaration.tensor
-
 
 class DontDeclareAction(Action):
     "Choose not to reveal any dominant rank card during the draw phase of the game."
@@ -84,8 +83,6 @@ class PlaceKittyAction(Action):
                     index += 1
         
         raise AssertionError(f"Error: {self.card}")
-        
-
 
 class PlaceAllKittyAction(Action):
     "Chooses 8 cards to discard."
@@ -96,17 +93,12 @@ class PlaceAllKittyAction(Action):
     def __repr__(self) -> str:
         return f"Discard({self.cards})"
 
-class NameFriend(Action):
-    "Changes trump suit and swap cards with the kitty."
-    def __init__(self, declaration: Declaration) -> None:
-        self.declaration = declaration
+class NameFriendCard(Action):
+    "Identify the friend card in the name phase."
+    def __init__(self, friend_card: FriendCard) -> None:
+        self.friend_card = friend_card
     def __repr__(self) -> str:
-        return f"ChaodAction({self.declaration})"
-    @property
-    def tensor(self) -> torch.Tensor:
-        "Shape: (6,)"
-        return self.declaration.suit.tensor
-
+        return f"NameFriendCard({self.friend_card.ord} {self.friend_card.suit} {self.friend_card.rank})"
 
 class ChaodiAction(Action):
     "Changes trump suit and swap cards with the kitty."
