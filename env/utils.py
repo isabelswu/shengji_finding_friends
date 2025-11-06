@@ -78,8 +78,12 @@ class AbsolutePosition(str, Enum):
         return {'2': AbsolutePosition.ONE, '3': AbsolutePosition.TWO, '4': AbsolutePosition.THREE, '5': AbsolutePosition.FOUR, '1': AbsolutePosition.FIVE}[self]
 
     @classmethod
+    def in_order(self):
+        return [AbsolutePosition.ONE, AbsolutePosition.TWO, AbsolutePosition.THREE, AbsolutePosition.FOUR, AbsolutePosition.FIVE]
+    
+    @classmethod
     def random(self):
-        return random.choice([AbsolutePosition.ONE, AbsolutePosition.TWO, AbsolutePosition.THREE, AbsolutePosition.FOUR, AbsolutePosition.FIVE])
+        return random.choice(AbsolutePosition.in_order())
 
 class Stage(str, Enum):
     declare_stage = 'DECLARE'
@@ -124,7 +128,7 @@ class FriendCard:
                 self.ord == Ordinality.SECOND and self.times_played == 2)
 
 def abs_positions_excluding(excluded: List[AbsolutePosition]):
-    all_positions = [AbsolutePosition.ONE, AbsolutePosition.TWO, AbsolutePosition.THREE, AbsolutePosition.FOUR, AbsolutePosition.FIVE]
+    all_positions = AbsolutePosition.in_order()
     return [p for p in all_positions if p not in excluded]
 
 def determine_teams(friend_position: AbsolutePosition, dealer_position: AbsolutePosition):

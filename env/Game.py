@@ -389,7 +389,7 @@ class Game:
             logging.info(f"Dealer {player_position} named friend card: {self.friend_card}")
             # discourage players from naming cards in the kitty or in their hand?
 
-            self.unknown_team = [AbsolutePosition.ONE, AbsolutePosition.TWO, AbsolutePosition.THREE, AbsolutePosition.FOUR, AbsolutePosition.FIVE].remove(self.dealer_position)
+            self.unknown_team = AbsolutePosition.in_order().remove(self.dealer_position)
             self.defender_team = [self.dealer_position]
             self.stage = Stage.main_stage
             if not self.round_history:
@@ -483,6 +483,7 @@ class Game:
                     if player_position == self.dealer_position:
                         self.defender_points += total_points
                     logging.debug(f"Teams not determined. Player {round_winner_position.value} earned {total_points} points")
+                    self.points_per_round.append(0)
 
                 # Checks if game is finished
                 if self.hands[player_position].size == 0:
