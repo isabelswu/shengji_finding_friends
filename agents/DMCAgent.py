@@ -11,7 +11,7 @@ from env.CardSet import CardSet, MoveType
 from .Agent import SJAgent, StageModule
 
 sys.path.append('.')
-from env.Actions import Action, ChaodiAction, DeclareAction, DontChaodiAction, DontDeclareAction, FollowAction, LeadAction, AppendLeadAction, EndLeadAction, PlaceAllKittyAction, PlaceKittyAction
+from env.Actions import Action, ChaodiAction, DeclareAction, DontChaodiAction, DontDeclareAction, FollowAction, LeadAction, AppendLeadAction, EndLeadAction, PlaceAllKittyAction, PlaceKittyAction, NameFriendCard
 from env.utils import ORDERING_INDEX, Stage, softmax
 from env.Observation import Observation
 from networks.Models import *
@@ -118,6 +118,30 @@ class KittyModule(DMCModule):
                 obs.declarer_position_tensor, # (4,)
                 obs.perceived_trump_cardsets, # (36,)
                 # TODO: add kitty to state
+            ])
+            state_batch[i] = state_tensor
+            if self.dynamic_encoding:
+                action_batch[i] = ac.get_dynamic_tensor(obs.dominant_suit, obs.dominant_rank)
+            else:
+                action_batch[i] = ac.tensor
+            gt_rewards[i] = rw
+        device = next(self._model.parameters()).device
+        return state_batch.to(device), action_batch.to(device), gt_rewards.to(device)
+    
+# TODO: i have no idea what i'm doing
+class NameModule(DMCModule):
+    def prepare_batch_inputs(self, samples: List[Tuple[Observation, Action, float]]):
+        state_batch = torch.zeros((len(samples), 172))
+        action_batch = torch.zeros(len(samples), dtype=torch.int)
+        gt_rewards = torch.zeros((len(samples), 1))
+        for i, (obs, ac, rw) in enumerate(samples):
+            assert isinstance(ac, NameFriendCard), "NameAgent can only handle naming stage actions"
+            state_tensor = torch.cat([
+                obs.dynamic_hand_tensor if self.dynamic_encoding else obs.hand.tensor, # (108,)
+                obs.dealer_position_tensor, # (4,)
+                obs.trump_tensor, # (20,)
+                obs.declarer_position_tensor, # (4,)
+                obs.perceived_trump_cardsets, # (36,)
             ])
             state_batch[i] = state_tensor
             if self.dynamic_encoding:
