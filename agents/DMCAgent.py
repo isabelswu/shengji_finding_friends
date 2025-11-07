@@ -292,6 +292,7 @@ class DMCAgent(SJAgent):
         self.declare_module: DeclareModule = DeclareModule(batch_size=64, dynamic_encoding=dynamic_encoding)
         self.kitty_module: KittyModule = KittyModule(batch_size=32, dynamic_encoding=dynamic_encoding)
         self.chaodi_module: ChaodiModule = ChaodiModule(batch_size=32, dynamic_encoding=dynamic_encoding)
+        self.name_module: NameModule = NameModule(batch_size=32, dynamic_encoding=dynamic_encoding)
         self.main_module: MainModule = MainModule(batch_size=64, use_oracle=use_oracle, dynamic_encoding=dynamic_encoding, sac=sac)
         self.dynamic_encoding = dynamic_encoding
         self.sac = sac
@@ -301,6 +302,7 @@ class DMCAgent(SJAgent):
             'declare_optim_state': self.declare_module.optimizer.state_dict(),
             'kitty_optim_state': self.kitty_module.optimizer.state_dict(),
             'chaodi_optim_state': self.chaodi_module.optimizer.state_dict(),
+            'name_optim_state': self.name_module.optimizer.state_dict(),
             'main_optim_state': self.main_module.optimizer.state_dict(),
             'alpha_optim_state': self.main_module.alpha_optimizer.state_dict() if self.sac else None,
             'alpha': self.main_module.log_alpha.exp().cpu().item()
@@ -311,6 +313,7 @@ class DMCAgent(SJAgent):
         self.kitty_module.optimizer.load_state_dict(state['kitty_optim_state'])
         self.declare_module.optimizer.load_state_dict(state['declare_optim_state'])
         self.chaodi_module.optimizer.load_state_dict(state['chaodi_optim_state'])
+        self.name_module.optimizer.load_state_dict(state['name_optim_state'])
         if self.sac:
             self.main_module.log_alpha.data = torch.tensor(state['alpha']).log()
             self.main_module.alpha_optimizer.load_state_dict(state['alpha_optim_state'])
@@ -342,6 +345,14 @@ class DMCAgent(SJAgent):
             loaded_models = False
         self.chaodi_module.load_model(chaodi_model)
 
+        name_model: nn.Module = train_models.NameModel().cuda()
+        if os.path.exists(f'{self.name}/name.pt'):
+            name_model.load_state_dict(torch.load(f'{self.name}/name.pt', map_location='cuda'), strict=False)
+            print("Using loaded model for naming")
+        else:
+            loaded_models = False
+        self.name_module.load_model(name_model)
+
         try:
             with open(f'{self.name}/state.pkl', mode='rb') as f:
                 state = pickle.load(f)
@@ -369,10 +380,31 @@ class DMCAgent(SJAgent):
         torch.save(self.kitty_module._model.state_dict(), self.name + '/kitty.pt')
         if self.chaodi_module._model is not None:
             torch.save(self.chaodi_module._model.state_dict(), self.name + '/chaodi.pt')
+        torch.save(self.name_module._model.state_dict(), self.name + '/name.pt')
         torch.save(self.main_module._model.state_dict(), self.name + '/main.pt')
     
     def clear_loss_histories(self):
         self.declare_module.train_loss_history.clear()
         self.kitty_module.train_loss_history.clear()
         self.chaodi_module.train_loss_history.clear()
+        self.name_module.train_loss_history.clear()
         self.main_module.train_loss_history.clear()
+
+    # --- Naming stage logic ---
+    def act_name(self, obs: Observation, epsilon=None, training=True):
+        """
+        Select an action for the naming (friend-finding) stage using the NameModule.
+        """
+        def reward(a: Action) -> float:
+            state_batch, action_batch, _ = self.name_module.prepare_batch_inputs([(obs, a, 0)])
+            return self.name_module._eval_model(state_batch, action_batch).cpu().item()
+        if epsilon and random.random() < epsilon:
+            return random.choice(obs.actions)
+        else:
+            return max(obs.actions, key=reward)
+
+    def learn_name(self, samples: List[Tuple[Observation, Action, float]]):
+        """
+        Train the NameModule on naming stage samples.
+        """
+        self.name_module.learn_from_samples(samples)
