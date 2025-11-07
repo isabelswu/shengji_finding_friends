@@ -12,7 +12,7 @@ from agents.StrategicAgent import StrategicAgent
 from agents.InteractiveAgent import InteractiveAgent
 from agents.DMCAgent import DMCAgent
 from agents.DQNAgent import DQNAgent
-from env.utils import Stage
+from env.utils import Stage, AbsolutePosition
 import argparse
 import tqdm
 import numpy as np
@@ -23,10 +23,11 @@ global_main_queue = ctx.Queue(maxsize=25)
 global_chaodi_queue = ctx.Queue(maxsize=25)
 global_declare_queue = ctx.Queue(maxsize=25)
 global_kitty_queue = ctx.Queue(maxsize=25)
+global_naming_queue = ctx.Queue(maxsize=25)
 actor_processes = []
 
 # Parallelized data sampling
-def sampler(idx: int, player: SJAgent, discount, decay_factor, global_main_queue, global_chaodi_queue, global_declare_queue, global_kitty_queue, enable_chaodi: bool, enable_combos: bool, epsilon=0.02, reuse_times=0, oracle_duration=0, game_count=0, log_file='', combo_penalty=0.1, combo_alternation=False):
+def sampler(idx: int, player: SJAgent, discount, decay_factor, global_main_queue, global_chaodi_queue, global_declare_queue, global_kitty_queue, global_naming_queue, enable_chaodi: bool, enable_combos: bool, epsilon=0.02, reuse_times=0, oracle_duration=0, game_count=0, log_file='', combo_penalty=0.1, combo_alternation=False):
     logging.getLogger().setLevel(logging.ERROR)
     # logging.basicConfig(format="%(process)d %(message)s", filename=log_file, encoding='utf-8', level=logging.DEBUG)
     train_sim = Simulation(
@@ -41,7 +42,7 @@ def sampler(idx: int, player: SJAgent, discount, decay_factor, global_main_queue
         combo_penalty=combo_penalty
     )
     while True:
-        local_main, local_declare, local_kitty, local_chaodi = [], [], [], []
+        local_main, local_declare, local_kitty, local_chaodi, local_naming = [], [], [], [], []
         same_deck_count = 0
         for i in range(10):
             with torch.no_grad():
@@ -50,6 +51,7 @@ def sampler(idx: int, player: SJAgent, discount, decay_factor, global_main_queue
                 local_declare.extend(train_sim.declaration_history)
                 local_chaodi.extend(train_sim.chaodi_history)
                 local_kitty.extend(train_sim.kitty_history)
+                local_naming.extend(train_sim.naming_history)
             
             # Get new deck every `reuse_times` times
             if same_deck_count < reuse_times:
@@ -65,6 +67,7 @@ def sampler(idx: int, player: SJAgent, discount, decay_factor, global_main_queue
         global_declare_queue.put(local_declare)
         global_chaodi_queue.put(local_chaodi)
         global_kitty_queue.put(local_kitty)
+        global_naming_queue.put(local_naming)
 
 def evaluator(idx: int, player1: SJAgent, player2: SJAgent, enable_chaodi: bool, enable_combos: bool, eval_size: int, eval_results_queue: Queue, verbose=False, learn_from_eval=False, log_file=''):
     logging.getLogger().setLevel(logging.ERROR)
@@ -83,12 +86,12 @@ def evaluator(idx: int, player1: SJAgent, player2: SJAgent, enable_chaodi: bool,
     while True:
         with torch.no_grad():
             while eval_sim.step()[0]: pass
-        opponent_index = int(eval_sim.game_engine.dealer_position in ['N', 'S'])
+        # In Finding Friends, track defender vs opponent wins
         opponents_won = eval_sim.game_engine.opponent_points >= 80
-        win_index = int(opponents_won) if opponent_index == 1 else (1 - opponents_won)
+        winners, opponents = eval_sim.game_engine.opponent_team, eval_sim.game_engine.defender_team if opponents_won else eval_sim.game_engine.defender_team, eval_sim.game_engine.opponent_team
         eval_results_queue.put((
-            win_index,
-            opponent_index,
+            winners,
+            opponents,
             eval_sim.game_engine.opponent_points,
             abs(eval_sim.game_engine.final_defender_reward)
         ))
@@ -185,7 +188,7 @@ def train(agent_type: str, games: int, model_folder: str, eval_only: bool, eval_
     
     if not eval_only:
         for i in range(1 if single_process else actor_process_count):
-            actor = ctx.Process(target=sampler, args=(i, agent, discount, decay_factor ** (1 / games), global_main_queue, global_chaodi_queue, global_declare_queue, global_kitty_queue, chaodi, combos, epsilon, reuse_times, oracle_duration // actor_process_count, iterations // actor_process_count, f"{model_folder}/debug{i}.log", combo_penalty, combo_alternation))
+            actor = ctx.Process(target=sampler, args=(i, agent, discount, decay_factor ** (1 / games), global_main_queue, global_chaodi_queue, global_declare_queue, global_kitty_queue, global_naming_queue, chaodi, combos, epsilon, reuse_times, oracle_duration // actor_process_count, iterations // actor_process_count, f"{model_folder}/debug{i}.log", combo_penalty, combo_alternation))
             actor.start()
             actor_processes.append(actor)
             
@@ -199,12 +202,15 @@ def train(agent_type: str, games: int, model_folder: str, eval_only: bool, eval_
                 kitty_batch = global_kitty_queue.get()
                 main_batch = global_main_queue.get()
                 chaodi_batch = global_chaodi_queue.get()
+                naming_batch = global_naming_queue.get()
                 agent.learn_from_samples(declare_batch, Stage.declare_stage)
                 agent.learn_from_samples(kitty_batch, Stage.kitty_stage)
                 agent.learn_from_samples(chaodi_batch, Stage.chaodi_stage)
+                agent.learn_from_samples(naming_batch, Stage.name_stage)
                 agent.learn_from_samples(main_batch, Stage.main_stage)
             agent.save_models_to_disk()
-            print('main loss:', np.mean(agent.main_module.train_loss_history), 'declare loss:', np.mean(agent.declare_module.train_loss_history), 'kitty loss:', np.mean(agent.kitty_module.train_loss_history), 'chaodi loss:', np.mean(agent.chaodi_module.train_loss_history))
+            # Need to add name_module
+            print('main loss:', np.mean(agent.main_module.train_loss_history), 'declare loss:', np.mean(agent.declare_module.train_loss_history), 'kitty loss:', np.mean(agent.kitty_module.train_loss_history), 'chaodi loss:', np.mean(agent.chaodi_module.train_loss_history), 'naming loss:', np.mean(agent.naming_module.train_loss_history))
             if agent.sac:
                 print("Current alpha:", agent.main_module.log_alpha.exp().cpu().item())
                 if isinstance(agent, DQNAgent):
@@ -229,9 +235,27 @@ def train(agent_type: str, games: int, model_folder: str, eval_only: bool, eval_
             print(f"Average inference time: {np.mean(eval_sim.inference_times)}s")
         else:
             # eval_size = max(1, eval_size // eval_count * eval_count) # Must be multiple of eval_count
-            win_counts = [0, 0] # Defenders, opponents
-            level_counts = [0, 0]
-            opposition_points = [[], []]
+            win_counts = {
+                AbsolutePosition.ONE: 0,
+                AbsolutePosition.TWO: 0,
+                AbsolutePosition.THREE: 0,
+                AbsolutePosition.FOUR: 0,
+                AbsolutePosition.FIVE: 0
+            }
+            level_counts = {
+                AbsolutePosition.ONE: 0,
+                AbsolutePosition.TWO: 0,
+                AbsolutePosition.THREE: 0,
+                AbsolutePosition.FOUR: 0,
+                AbsolutePosition.FIVE: 0
+            }
+            opposition_points = {
+                AbsolutePosition.ONE: [],
+                AbsolutePosition.TWO: [],
+                AbsolutePosition.THREE: [],
+                AbsolutePosition.FOUR: [],
+                AbsolutePosition.FIVE: []
+            }
             eval_queue = ctx.Queue()
             eval_actors = []
             for i in range(min(eval_size, eval_process_count)):
@@ -241,27 +265,31 @@ def train(agent_type: str, games: int, model_folder: str, eval_only: bool, eval_
         
             with tqdm.tqdm(total=eval_size) as progress_bar:
                 for i in range(eval_size):
-                    win_index, opponent_index, points, levels = eval_queue.get()
-                    win_counts[win_index] += 1
-                    level_counts[win_index] += levels
-                    opposition_points[opponent_index].append(points)
+                    winners, opponents, points, levels = eval_queue.get()
+                    for p in winners:
+                        win_counts[p] += 1
+                        level_counts[p] += levels
+                    for p in opponents:
+                        opposition_points[p].append(points)
                     progress_bar.update(1)
                 
         
             for a in eval_actors:
                 a.kill()
 
-        print('Win counts:', win_counts, 'level counts:', level_counts)
-        print("Average opposition points:", np.mean(opposition_points[0]), np.mean(opposition_points[1]))
+        # Print per-player statistics
+        print('Win counts per player:', {k.value: v for k, v in win_counts.items()})
+        print('Level counts per player:', {k.value: v for k, v in level_counts.items()})
+        print("Average opposition points per player:", {k.value: np.mean(v) if v else 0 for k, v in opposition_points.items()})
         
         iterations += games
 
         if not eval_only:
             stats.append({
                 "iterations": iterations,
-                "win_counts": win_counts[0] / sum(win_counts),
-                "level_counts": level_counts[0] / sum(level_counts),
-                "avg_points": [np.mean(opposition_points[0]), np.mean(opposition_points[1])]
+                "win_counts": win_counts[AbsolutePosition.ONE] / sum(win_counts.values()),
+                "level_counts": level_counts[AbsolutePosition.ONE] / sum(level_counts.values()),
+                "avg_points": [np.mean(opposition_points[AbsolutePosition.ONE]), np.mean(opposition_points[1:])]
             })
             with open(f'{model_folder}/stats.pkl', mode='w+b') as f:
                 pickle.dump(stats, f)

@@ -13,7 +13,7 @@ from env.Actions import *
 from collections import deque
 
 class Simulation:
-    def __init__(self, player1: SJAgent, player2: SJAgent=None, discount=0.99, enable_chaodi=True, enable_combos=False, eval=False, epsilon=0.02, learn_from_eval=False, oracle_duration=0, game_count=0, combo_penalty=0.1, combo_alternation=False) -> None:
+    def __init__(self, player1: SJAgent, player2: SJAgent=None, discount=0.99, enable_chaodi=False, enable_combos=False, eval=False, epsilon=0.02, learn_from_eval=False, oracle_duration=0, game_count=0, combo_penalty=0.1, combo_alternation=False) -> None:
         "If eval = True, use random agents for East and West."
 
         self.oracle_duration = oracle_duration
@@ -31,9 +31,27 @@ class Simulation:
 
         self.current_player = None
         self.discount = discount
-        self.win_counts = [0, 0] # index 0 = wins of N and S; index 1 = wins of W and E
-        self.level_counts = [0, 0]
-        self.opposition_points = [[], []] # index 0 is the opposition points for N and S;
+        self.win_counts = {
+            AbsolutePosition.ONE: 0,
+            AbsolutePosition.TWO: 0,
+            AbsolutePosition.THREE: 0,
+            AbsolutePosition.FOUR: 0,
+            AbsolutePosition.FIVE: 0
+        } # wins for each of the five players
+        self.level_counts = {
+            AbsolutePosition.ONE: 0,
+            AbsolutePosition.TWO: 0,
+            AbsolutePosition.THREE: 0,
+            AbsolutePosition.FOUR: 0,
+            AbsolutePosition.FIVE: 0
+        } # level counts for each of the five players
+        self.opposition_points = {
+            AbsolutePosition.ONE: [],
+            AbsolutePosition.TWO: [],
+            AbsolutePosition.THREE: [],
+            AbsolutePosition.FOUR: [],
+            AbsolutePosition.FIVE: []
+        } # opposition points for each player
         self.eval_mode = eval
         self.learn_from_eval = learn_from_eval
         self.player1 = player1 # only this player is being trained
@@ -43,45 +61,53 @@ class Simulation:
 
         # (state, action, reward) tuples for each player during the main stage of the game
         self._main_history_per_player: Dict[AbsolutePosition, List[Tuple[Observation, Action, float]]] = {
-            AbsolutePosition.NORTH: [],
-            AbsolutePosition.SOUTH: [],
-            AbsolutePosition.WEST: [],
-            AbsolutePosition.EAST: []
+            AbsolutePosition.ONE: [],
+            AbsolutePosition.TWO: [],
+            AbsolutePosition.THREE: [],
+            AbsolutePosition.FOUR: [],
+            AbsolutePosition.FIVE: []
         }
         self.main_history: List[Tuple[Observation, Action, float, Observation]] = []
 
         # (state, action, reward) tuples for each player who got to bury the kitty
         self._kitty_history_per_player: Dict[AbsolutePosition, List[Tuple[Observation, Action, float]]] = {
-            AbsolutePosition.NORTH: [],
-            AbsolutePosition.SOUTH: [],
-            AbsolutePosition.WEST: [],
-            AbsolutePosition.EAST: []
+            AbsolutePosition.ONE: [],
+            AbsolutePosition.TWO: [],
+            AbsolutePosition.THREE: [],
+            AbsolutePosition.FOUR: [],
+            AbsolutePosition.FIVE: []
         }
         self.kitty_history: List[Tuple[Observation, Action, float, Observation]] = []
 
         # (state, action, reward) tuples for each player who declared a trump suit
         self._declaration_history_per_player: Dict[AbsolutePosition, List[Tuple[Observation, Action, float]]] = {
-            AbsolutePosition.NORTH: [],
-            AbsolutePosition.SOUTH: [],
-            AbsolutePosition.WEST: [],
-            AbsolutePosition.EAST: []
+            AbsolutePosition.ONE: [],
+            AbsolutePosition.TWO: [],
+            AbsolutePosition.THREE: [],
+            AbsolutePosition.FOUR: [],
+            AbsolutePosition.FIVE: []
         }
         self.declaration_history: List[Tuple[Observation, Action, float, Observation]] = []
 
         # (state, action, reward) tuples for each player who chaodied.
         self._chaodi_history_per_player: Dict[AbsolutePosition, List[Tuple[Observation, Action, float]]] = {
-            AbsolutePosition.NORTH: [],
-            AbsolutePosition.SOUTH: [],
-            AbsolutePosition.WEST: [],
-            AbsolutePosition.EAST: []
+            AbsolutePosition.ONE: [],
+            AbsolutePosition.TWO: [],
+            AbsolutePosition.THREE: [],
+            AbsolutePosition.FOUR: [],
+            AbsolutePosition.FIVE: []
         }
         self.chaodi_history: List[Tuple[Observation, Action, float, Observation]] = []
 
+        # (state, action, reward) tuples for naming friend card
+        self.naming_history: List[Tuple[Observation, Action, float, Observation]] = []
+
         self.action_entropy_per_player = {
-            AbsolutePosition.NORTH: [],
-            AbsolutePosition.SOUTH: [],
-            AbsolutePosition.WEST: [],
-            AbsolutePosition.EAST: []
+            AbsolutePosition.ONE: [],
+            AbsolutePosition.TWO: [],
+            AbsolutePosition.THREE: [],
+            AbsolutePosition.FOUR: [],
+            AbsolutePosition.FIVE: []
         }
 
         self.cumulative_rewards = not isinstance(player1, DQNAgent) # Whether to compute cumulative rewards at the end
@@ -96,23 +122,28 @@ class Simulation:
         
         if not self.game_engine.game_ended:
             observation = self.game_engine.get_observation(self.current_player)
-            if self.eval_mode and observation.position in [AbsolutePosition.EAST, AbsolutePosition.WEST]:
-                # In evaluation mode, player2 plays EAST and WEST
+            use_player2 = self.eval_mode and self.player2 is not None
+            
+            if use_player2:
                 if self.game_engine.stage == Stage.declare_stage:
                     action = self.player2.act(observation, training=False)
                 elif self.game_engine.stage == Stage.kitty_stage:
                     action = self.player2.act(observation, training=False)
                 elif self.game_engine.stage == Stage.chaodi_stage:
+                    action = self.player2.act(observation, training=False)
+                elif self.game_engine.stage == Stage.name_stage:
                     action = self.player2.act(observation, training=False)
                 else:
                     action, _, _ = self.player2.act(observation, training=False)
             else:
-                # In training mode, player1 plays all 4 positions
+                # In training mode, player1 plays all 5 positions
                 if self.game_engine.stage == Stage.declare_stage:
                     action = self.player1.act(observation, epsilon=not self.eval_mode and self.epsilon, training=not self.eval_mode)
                 elif self.game_engine.stage == Stage.kitty_stage:
                     action = self.player1.act(observation, epsilon=not self.eval_mode and self.epsilon, training=not self.eval_mode)
                 elif self.game_engine.stage == Stage.chaodi_stage:
+                    action = self.player1.act(observation, epsilon=not self.eval_mode and self.epsilon, training=not self.eval_mode)
+                elif self.game_engine.stage == Stage.name_stage:
                     action = self.player1.act(observation, epsilon=not self.eval_mode and self.epsilon, training=not self.eval_mode)
                 else:
                     if self.eval_mode:
@@ -126,7 +157,7 @@ class Simulation:
             self.current_player, reward = self.game_engine.run_action(action, self.current_player)
             
             # Collect the observation, action and reward if training(rewards will be updated after the game finished)
-            if not self.eval_mode or self.learn_from_eval and self.current_player in (AbsolutePosition.NORTH, AbsolutePosition.SOUTH):
+            if not self.eval_mode or self.learn_from_eval:
                 if last_stage == Stage.declare_stage:
                     if len(observation.actions) > 1: # only collect data if the player had a choice
                         self._declaration_history_per_player[last_player].append((observation, action, reward))
@@ -134,39 +165,32 @@ class Simulation:
                     self._kitty_history_per_player[last_player].append((observation, action, reward))
                 elif last_stage == Stage.chaodi_stage:
                     self._chaodi_history_per_player[last_player].append((observation, action, reward))
+                elif last_stage == Stage.name_stage:
+                    self.naming_history.append((observation, action, reward))
                 else:
                     # Don't store intermediate append actions
                     if isinstance(action, EndLeadAction) or isinstance(action, FollowAction):
                         self._main_history_per_player[last_player].append((observation, action, reward))
                         self.action_entropy_per_player[last_player].append((max_prob, entropy))
             
-            # Helper function that determines if a player is on the defender side or the opponent side
-            def is_defender(player: AbsolutePosition):
-                return player == self.game_engine.dealer_position or player.next_position.next_position == self.game_engine.dealer_position
-            
             # If we reached the end of the game, propagate rewards for all states and actions.
             if self.game_engine.game_ended:
+                def is_defender(player: AbsolutePosition):
+                    return player in self.game_engine.defender_team
                 
-                # Determine who won and update the win count
-                if self.game_engine.opponent_points >= 80:
-                    if self.game_engine.dealer_position in [AbsolutePosition.NORTH, AbsolutePosition.SOUTH]:
-                        self.win_counts[1] += 1
-                        self.level_counts[1] += self.game_engine.final_opponent_reward
+                defenders_won = self.game_engine.opponent_points < 80
+                # Update win counts and level counts for each player
+                for position in AbsolutePosition.in_order():
+                    if is_defender(position):
+                        self.level_counts[position] += self.game_engine.final_defender_reward
+                        if defenders_won:
+                            self.win_counts[position] += 1
                     else:
-                        self.win_counts[0] += 1
-                        self.level_counts[0] += self.game_engine.final_opponent_reward
-                else:
-                    if self.game_engine.dealer_position in [AbsolutePosition.NORTH, AbsolutePosition.SOUTH]:
-                        self.win_counts[0] += 1
-                        self.level_counts[0] += self.game_engine.final_defender_reward
-                    else:
-                        self.win_counts[1] += 1
-                        self.level_counts[1] += self.game_engine.final_defender_reward
-                
-                if self.game_engine.dealer_position in [AbsolutePosition.NORTH, AbsolutePosition.SOUTH]:
-                    self.opposition_points[1].append(self.game_engine.opponent_points)
-                else:
-                    self.opposition_points[0].append(self.game_engine.opponent_points)
+                        self.level_counts[position] += self.game_engine.final_opponent_reward
+                        # Update opposition points for attackers
+                        self.opposition_points[position].append(self.game_engine.opponent_points)
+                        if not defenders_won:
+                            self.win_counts[position] += 1
 
                 logging.debug("Data for current round:")
                 logging.debug('Main history: ' + str({k.value: len(v) for k, v in self._main_history_per_player.items()}))
@@ -176,11 +200,16 @@ class Simulation:
 
                 position_list = []
                 if self.learn_from_eval:
-                    position_list = ['N', 'S']
+                    # In Finding Friends, learn from all players or specific subset, adjust later
+                    position_list = ['1', '2', '3', '4', '5']
                 elif not self.eval_mode:
-                    position_list = ['N', 'W', 'S', 'E']
+                    position_list = ['1', '2', '3', '4', '5']
                 else:
                     return True, action # skip action collection process if in eval mode
+
+                # For naming stage, the reward is not discounted
+                if is_defender(self.game_engine.dealer_position):
+                    self.naming_history[-1][2] += self.game_engine.final_defender_reward
 
                 for position in position_list:
                     # For kitty action, the reward is not discounted because each move is equally important
@@ -281,6 +310,7 @@ class Simulation:
         self.declaration_history.clear()
         self.chaodi_history.clear()
         self.kitty_history.clear()
+        self.naming_history.clear()
 
         # If reuse_old_deck, then re-play the game using the same hands
         if not self.game_engine.is_warmup_game and reuse_old_deck:
