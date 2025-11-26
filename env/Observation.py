@@ -23,6 +23,7 @@ class Observation:
         self.friend_card = friend_card
         self.opponent_team = opponent_team
         self.defender_team = defender_team
+        # self.unknown_team = unknown_team
         self.round_history = round_history
         self.unplayed_cards = unplayed_cards
         self.leads_current_round = leads_current_trick # If the player is going to lead the next trick

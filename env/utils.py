@@ -114,7 +114,7 @@ class FriendCard:
     @property
     def tensor(self):
         "Return a fixed size binary tensor of shape (57,) representing the friend card (54-jokers), ord (binary feature), times played (3 values for 0, 1, 2 instances), and whether friend is public."
-        rep = torch.zeros(58) 
+        rep = torch.zeros(57) 
         rep[ORDERING_INDEX[self.card]] = 1
         rep[52] = int(self.ord == Ordinality.SECOND)
         rep[53 + self.times_played] = 1

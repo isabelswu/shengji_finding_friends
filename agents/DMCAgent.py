@@ -87,16 +87,16 @@ class DMCModule(StageModule):
 
 class DeclareModule(DMCModule):
     def prepare_batch_inputs(self, samples: List[Tuple[Observation, Action, float]]):
-        x_batch = torch.zeros((len(samples), 179))
+        x_batch = torch.zeros((len(samples), 193))  # 186 (state) + 7 (action) for 5 players
         gt_rewards = torch.zeros((len(samples), 1))
         for i, (obs, ac, rw) in enumerate(samples):
             assert isinstance(ac, DeclareAction) or isinstance(ac, DontDeclareAction), "DeclareAgent can only handle declare actions"
             state_tensor = torch.cat([
                 obs.dynamic_hand_tensor if self.dynamic_encoding else obs.hand.tensor, # (108,)
-                obs.dealer_position_tensor, # (4,)
+                obs.dealer_position_tensor, # (5,) for 5 players
                 obs.trump_tensor, # (20,)
-                obs.declarer_position_tensor, # (4,)
-                obs.perceived_trump_cardsets, # (36,)
+                obs.declarer_position_tensor, # (5,) for 5 players
+                obs.perceived_trump_cardsets, # (48,) for 4 other players × 12
             ])
             x_batch[i] = torch.cat([state_tensor, ac.tensor])
             gt_rewards[i] = rw
@@ -106,17 +106,17 @@ class DeclareModule(DMCModule):
 
 class KittyModule(DMCModule):
     def prepare_batch_inputs(self, samples: List[Tuple[Observation, Action, float]]):
-        state_batch = torch.zeros((len(samples), 172))
+        state_batch = torch.zeros((len(samples), 186))
         action_batch = torch.zeros(len(samples), dtype=torch.int)
         gt_rewards = torch.zeros((len(samples), 1))
         for i, (obs, ac, rw) in enumerate(samples):
             assert isinstance(ac, PlaceKittyAction), "KittyAgent can only handle place kitty actions"
             state_tensor = torch.cat([
                 obs.dynamic_hand_tensor if self.dynamic_encoding else obs.hand.tensor, # (108,)
-                obs.dealer_position_tensor, # (4,)
+                obs.dealer_position_tensor, # (5,) for 5 players
                 obs.trump_tensor, # (20,)
-                obs.declarer_position_tensor, # (4,)
-                obs.perceived_trump_cardsets, # (36,)
+                obs.declarer_position_tensor, # (5,) for 5 players
+                obs.perceived_trump_cardsets, # (48,) for 4 other players × 12
                 # TODO: add kitty to state
             ])
             state_batch[i] = state_tensor
@@ -132,8 +132,8 @@ class KittyModule(DMCModule):
 # TODO: i have no idea what i'm doing
 class NameModule(DMCModule):
     def prepare_batch_inputs(self, samples: List[Tuple[Observation, Action, float]]):
-        state_batch = torch.zeros((len(samples), 172))
-        action_batch = torch.zeros((len(samples), 58))  # 58 matches FriendCard.tensor shape
+        x_batch = torch.zeros((len(samples), 229))
+        # action_batch = torch.zeros((len(samples), 57))  # 57 matches FriendCard.tensor shape
         gt_rewards = torch.zeros((len(samples), 1))
         for i, (obs, ac, rw) in enumerate(samples):
             assert isinstance(ac, NameFriendCard), "NameAgent can only handle naming stage actions"
@@ -144,12 +144,10 @@ class NameModule(DMCModule):
                 obs.declarer_position_tensor, # (4,)
                 obs.perceived_trump_cardsets, # (36,)
             ])
-            state_batch[i] = state_tensor
-            action_batch[i] = ac.friend_card.tensor  # Use full friend card tensor
+            x_batch[i] = torch.cat([state_tensor, ac.tensor])
             gt_rewards[i] = rw
         device = next(self._model.parameters()).device
-        return state_batch.to(device), action_batch.to(device), gt_rewards.to(device)
-
+        return x_batch.to(device), gt_rewards.to(device)
 
 class ChaodiModule(DMCModule):
     def prepare_batch_inputs(self, samples: List[Tuple[Observation, Action, float]]):
@@ -183,10 +181,10 @@ class MainModule(DMCModule):
 
     def prepare_batch_inputs(self, samples: List[Tuple[Observation, Action, float, Tuple[Observation, float, float]]], training=True):
         if self.use_oracle:
-            x_batch = torch.zeros((len(samples), 1089 + 108)) # additionally provide other players' hands
+            x_batch = torch.zeros((len(samples), 1619 + 108)) # additionally provide other players' hands
         else:
-            x_batch = torch.zeros((len(samples), 1089 - 2 * 108))
-        history_batch = torch.zeros((len(samples), 15, 436)) # Store up to last 15 rounds of history
+            x_batch = torch.zeros((len(samples), 1619 - 2 * 108))
+        history_batch = torch.zeros((len(samples), 15, 545)) # Store up to last 15 rounds of history
         gt_rewards = torch.zeros((len(samples), 1))
         next_action_entropy = torch.zeros(len(samples))
         current_action_entropy = torch.zeros(len(samples))
@@ -205,14 +203,17 @@ class MainModule(DMCModule):
                 next_obs, current_entropy, next_entropy = None, None, None
             
             state_tensor = torch.cat([
+                # perceived (432, ) - other 4 players' hands
                 obs.dynamic_hand_tensor if self.dynamic_encoding else obs.hand.tensor, # (108,),
                 obs.dealer_position_tensor, # (4,)
                 obs.trump_tensor, # (20,)
-                obs.declarer_position_tensor, # (4,)
+                obs.declarer_position_tensor, # (5,)
                 obs.chaodi_times_tensor, # (4,)
-                obs.points_tensor, # (80,)
+                obs.points_tensor, # (120,)
+                obs.individual_points_tensor, # (200, )
+                obs.team_tensor, # (15, )
                 obs.unplayed_cards_dynamic_tensor if self.dynamic_encoding else obs.unplayed_cards_tensor, # (108,)
-                current_moves, # (328,)
+                current_moves, # (437,)
                 obs.kitty_dynamic_tensor if self.dynamic_encoding else obs.kitty_tensor, # (108,)
                 # obs.current_dominating_player_index, # (3,)
                 obs.dominates_all_tensor(cardset), # (1,)
@@ -345,9 +346,9 @@ class DMCAgent(SJAgent):
             loaded_models = False
         self.chaodi_module.load_model(chaodi_model)
 
-        name_model: nn.Module = train_models.NameModel().cuda()
+        name_model: nn.Module = train_models.NameModel().to(device)
         if os.path.exists(f'{self.name}/name.pt'):
-            name_model.load_state_dict(torch.load(f'{self.name}/name.pt', map_location='cuda'), strict=False)
+            name_model.load_state_dict(torch.load(f'{self.name}/name.pt', map_location=device), strict=False)
             print("Using loaded model for naming")
         else:
             loaded_models = False

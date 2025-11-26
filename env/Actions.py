@@ -99,6 +99,10 @@ class NameFriendCard(Action):
         self.friend_card = friend_card
     def __repr__(self) -> str:
         return f"NameFriendCard({self.friend_card.ord} {self.friend_card.suit} {self.friend_card.rank})"
+    @property
+    def tensor(self) -> torch.Tensor:
+        "Shape: (57,)"
+        return self.friend_card.tensor
 
 class ChaodiAction(Action):
     "Changes trump suit and swap cards with the kitty."

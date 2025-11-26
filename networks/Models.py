@@ -9,7 +9,8 @@ class DeclarationModel(nn.Module):
     def __init__(self) -> None:
         super().__init__()
 
-        self.fc1 = nn.Linear(172 + 7, 256)
+        # self.fc1 = nn.Linear(172 + 7, 256)
+        self.fc1 = nn.Linear(193, 256)
         self.fc2 = nn.Linear(256, 256)
         self.fc3 = nn.Linear(256, 1)
 
@@ -121,6 +122,29 @@ class KittyArgmaxModel(nn.Module):
         x = self.fc4(x)
         return self.softmax(x)
 
+class NameModel(nn.Module):
+    "Name model's observation"
+    def __init__(self) -> None:
+        super().__init__()
+
+        self.fc1 = nn.Linear(172 + 57, 256)
+        self.fc2 = nn.Linear(256, 256)
+        self.fc3 = nn.Linear(256, 256)
+        self.fc4 = nn.Linear(256, 1)
+
+    def forward(self, x: torch.Tensor):
+        """
+        Performs the forward pass of declaration reward prediction. The input tensor should have shape (B, 229), where B is the batch dimension. The first 172 values are for the observation, and last 57 are for the action.
+        """
+        x = self.fc1(x)
+        x = torch.relu(x)
+        x = self.fc2(x)
+        x = torch.relu(x)
+        x = self.fc3(x)
+        x = torch.relu(x)
+        x = self.fc4(x)
+        return x
+
 class ChaodiModel(nn.Module):
     "The chaodi model's observation includes: the player's cards, the player's position relative to the dealer, current declaration, position of current declaration, known trump cards in each player's hand."
     def __init__(self) -> None:
@@ -148,11 +172,11 @@ class MainModel(nn.Module):
     """
     The main model's observation includes:
         - The player's perceived cardsets for all players based on incomplete information (432)
-        - The player's position relative to the dealer
-        - The current declaration
-        - The position of the current declaration
-        - The number of times each player chaodied
-        - Points earned by opponents and points escaped by defenders
+        - The player's position relative to the dealer 4
+        - The current declaration 7
+        - The position of the current declaration 4
+        - The number of times each player chaodied 4
+        - Points earned by opponents and points escaped by defenders 80
         - Unplayed cards of shape (108)
         - Historical moves of shape (H, 436)
         - Cards played in the current round by every other player, and the position of the player that is leading the round
@@ -162,12 +186,12 @@ class MainModel(nn.Module):
         super().__init__()
 
         self.use_oracle = use_oracle
-        self.lstm = nn.LSTM(436, 256, batch_first=True)
+        self.lstm = nn.LSTM(545, 256, batch_first=True)
         if use_oracle:
-            self.fc1 = nn.Linear(1197 + 256, 768)
+            self.fc1 = nn.Linear(1727 + 256, 1291)
         else:
-            self.fc1 = nn.Linear(1197 - 3 * 108 + 256, 768)
-        self.fc2 = nn.Linear(768, 512)
+            self.fc1 = nn.Linear(1727 - 3 * 108 + 256, 1291)
+        self.fc2 = nn.Linear(1291, 512)
         self.fc_rest = nn.Sequential(
             nn.Linear(512, 512),
             nn.ReLU(),
@@ -208,10 +232,10 @@ class ValueModel(nn.Module):
     def __init__(self) -> None:
         super().__init__()
 
-        self.lstm = nn.LSTM(436, 256, batch_first=True)
-        self.fc1 = nn.Linear(1088 - 3 * 108 + 256, 768)
+        self.lstm = nn.LSTM(545, 256, batch_first=True)
+        self.fc1 = nn.Linear(1726 - 4 * 108 + 256, 1291)
         self.fc2 = nn.Sequential(
-            nn.Linear(768, 512),
+            nn.Linear(1291, 512),
             nn.ReLU(),
             nn.Linear(512, 512)
         )

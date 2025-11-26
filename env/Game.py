@@ -110,17 +110,20 @@ class Game:
 
         # Compute actions
         actions: List[Action] = []
-
+        print("--------------------------------")
         if self.stage == Stage.declare_stage: # Stage 1: drawing cards phase
+            print("000 - Draw cards phase")
             if not self.is_warmup_game:
                 for suit, level in self.hands[position].trump_declaration_options(self.dominant_rank).items():
                     if not self.declarations or self.declarations[-1].level < level and (self.declarations[-1].suit == suit or self.declarations[-1].absolute_position != position):
                         actions.append(DeclareAction(Declaration(suit, level, position)))
             actions.append(DontDeclareAction())
         elif self.hands[position].size > 25: # Stage 2: choosing the kitty
+            print("000 - Choose kitty")
             for card, count in self.hands[position]._cards.items():
                 if count > 0: actions.append(PlaceKittyAction(card, count))
         elif self.current_chaodi_turn == position:
+            print("000 - Chaodi")
             # Chaodi
             if self.enable_chaodi and self.declarations:
                 for suit, level in self.hands[position].trump_declaration_options(self.dominant_rank).items():
@@ -130,6 +133,7 @@ class Game:
             actions.append(DontChaodiAction())
         elif self.stage == Stage.name_stage: # Stage 3: name friend card phase
             assert position == self.dealer_position, "Only dealer acts in naming stage"
+            print("000 - Name friend card")
             non_dominant_suits = [CardSuit.CLUB, CardSuit.SPADE, CardSuit.HEART, CardSuit.DIAMOND]
             if self.dominant_suit == TrumpSuit.CLUB:
                 non_dominant_suits.remove(CardSuit.CLUB)
@@ -144,7 +148,8 @@ class Game:
                     if rank != self.dominant_rank:
                         for ord in [Ordinality.FIRST, Ordinality.SECOND]:
                             actions.append(NameFriendCard(FriendCard(suit, rank, ord)))
-        elif self.stage == Stage.main_stage and self.round_history[-1][0] == position:
+        elif self.round_history[-1][0] == position:
+            print("000 - Else case" + str(len(self.round_history)))
             # In combo alternation mode, players at positions East or West cannot play combo moves
             if not self.enable_combos or not self.round_history[-1][1]:
                 ban_combos = self.combo_alternation and position in (AbsolutePosition.EAST, AbsolutePosition.WEST)
@@ -161,14 +166,17 @@ class Game:
                     for move in remaining_cards.get_leading_moves(self.dominant_suit, self.dominant_rank):
                         actions.append(AppendLeadAction(current_action, move))
                 actions.append(EndLeadAction(MoveType.Combo(current_action)))
-        elif self.stage == Stage.main_stage:
+        else:
+            print("000 - Else else case")
             # Combo is a catch-all type if we don't know the composition of the cardset
             for cardset in self.hands[position].get_matching_moves(MoveType.Combo(self.round_history[-1][1][0]), self.dominant_suit, self.dominant_rank):
                 actions.append(FollowAction(cardset))
+        print(self.stage)
+        print("--------------------------------")
         assert actions, f"Agent {position} has no action to choose from!"
 
         relative_points: dict[RelativePosition, int] = {}
-        for abspos, pts in self.individual_points.keys():
+        for abspos, pts in self.individual_points.items():
             relative_points[abspos.relative_to(position)] = pts
 
         observation = Observation(
@@ -185,7 +193,7 @@ class Game:
             defender_points = self.defender_points,
             individual_points = relative_points,
             friend_card = self.friend_card,
-            unknown_team = [p.relative_to(position) for p in self.unknown_team] if self.unknown_team else None,
+            # unknown_team = [p.relative_to(position) for p in self.unknown_team] if self.unknown_team else None,
             opponent_team = [p.relative_to(position) for p in self.opponent_team] if self.opponent_team else None,
             defender_team = [p.relative_to(position) for p in self.defender_team],
             round_history = [(p.relative_to(position), cards[:]) for p, cards in self.round_history],
@@ -316,8 +324,8 @@ class Game:
             if get_rank(action.card, self.dominant_suit, self.dominant_rank) >= 15:
                 reward -= 1 # Highly discourage players from discarding dominant rank cards or jokers
             if self.kitty.size == 8:
-                # if not self.round_history:
-                #     self.round_history.append((player_position, []))
+                if not self.round_history:
+                    self.round_history.append((player_position, []))
                 logging.debug(f"Current declaration sequence: {self.declarations}")
                 logging.debug(f"Hands of all players:")
                 logging.debug(f"  One: {self.hands['1']}")
@@ -343,8 +351,8 @@ class Game:
             self.kitty.add_cardset(action.cards)
             self.hands[player_position].remove_cardset(action.cards)
             logging.debug(f"Player {player_position.value} discarded kitty {action.cards}")
-            # if not self.round_history:
-            #     self.round_history.append((player_position, []))
+            if not self.round_history:
+                self.round_history.append((player_position, []))
             
             if not self.enable_chaodi or not self.declarations:
                 self.stage = Stage.name_stage
