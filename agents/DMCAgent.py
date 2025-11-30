@@ -129,20 +129,18 @@ class KittyModule(DMCModule):
         return state_batch.to(device), action_batch.to(device), gt_rewards.to(device)
     
 
-# TODO: i have no idea what i'm doing
 class NameModule(DMCModule):
     def prepare_batch_inputs(self, samples: List[Tuple[Observation, Action, float]]):
-        x_batch = torch.zeros((len(samples), 229))
-        # action_batch = torch.zeros((len(samples), 57))  # 57 matches FriendCard.tensor shape
+        x_batch = torch.zeros((len(samples), 243)) # 186 state + 57 name card action
         gt_rewards = torch.zeros((len(samples), 1))
         for i, (obs, ac, rw) in enumerate(samples):
             assert isinstance(ac, NameFriendCard), "NameAgent can only handle naming stage actions"
             state_tensor = torch.cat([
                 obs.dynamic_hand_tensor if self.dynamic_encoding else obs.hand.tensor, # (108,)
-                obs.dealer_position_tensor, # (4,)
+                obs.dealer_position_tensor, # (5,) for 5 players
                 obs.trump_tensor, # (20,)
-                obs.declarer_position_tensor, # (4,)
-                obs.perceived_trump_cardsets, # (36,)
+                obs.declarer_position_tensor, # (5,) for 5 players
+                obs.perceived_trump_cardsets, # (48,) for 4 other players × 12
             ])
             x_batch[i] = torch.cat([state_tensor, ac.tensor])
             gt_rewards[i] = rw
@@ -151,16 +149,16 @@ class NameModule(DMCModule):
 
 class ChaodiModule(DMCModule):
     def prepare_batch_inputs(self, samples: List[Tuple[Observation, Action, float]]):
-        x_batch = torch.zeros((len(samples), 178))
+        x_batch = torch.zeros((len(samples), 186 + 6)) # 186 state + 6 chaodi action
         gt_rewards = torch.zeros((len(samples), 1))
         for i, (obs, ac, rw) in enumerate(samples):
             assert isinstance(ac, ChaodiAction) or isinstance(ac, DontChaodiAction), "ChaodiAgent can only handle chaodi decisions"
             state_tensor = torch.cat([
                 obs.dynamic_hand_tensor if self.dynamic_encoding else obs.hand.tensor, # (108,)
-                obs.dealer_position_tensor, # (4,)
+                obs.dealer_position_tensor, # (5,) for 5 players
                 obs.trump_tensor, # (20,)
-                obs.declarer_position_tensor, # (4,)
-                obs.perceived_trump_cardsets, # (36,)
+                obs.declarer_position_tensor, # (5,) for 5 players
+                obs.perceived_trump_cardsets, # (48,) for 4 other players × 12
             ])
             x_batch[i] = torch.cat([state_tensor, ac.tensor])
             gt_rewards[i] = rw
@@ -180,11 +178,13 @@ class MainModule(DMCModule):
         self.alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=3e-4)
 
     def prepare_batch_inputs(self, samples: List[Tuple[Observation, Action, float, Tuple[Observation, float, float]]], training=True):
+        # For 5 players with friend card: state (1189) + action (108) = 1297
+        # With oracle: + 4 other players × 108 = 432
         if self.use_oracle:
-            x_batch = torch.zeros((len(samples), 1619 + 108)) # additionally provide other players' hands
+            x_batch = torch.zeros((len(samples), 1297 + 432)) # 1297 base + 432 oracle cardsets
         else:
-            x_batch = torch.zeros((len(samples), 1619 - 2 * 108))
-        history_batch = torch.zeros((len(samples), 15, 545)) # Store up to last 15 rounds of history
+            x_batch = torch.zeros((len(samples), 1297)) # 1189 state + 108 action
+        history_batch = torch.zeros((len(samples), 15, 545)) # Store up to last 15 rounds of history (5 players: 5 + 5*108 = 545)
         gt_rewards = torch.zeros((len(samples), 1))
         next_action_entropy = torch.zeros(len(samples))
         current_action_entropy = torch.zeros(len(samples))
@@ -203,27 +203,25 @@ class MainModule(DMCModule):
                 next_obs, current_entropy, next_entropy = None, None, None
             
             state_tensor = torch.cat([
-                # perceived (432, ) - other 4 players' hands
                 obs.dynamic_hand_tensor if self.dynamic_encoding else obs.hand.tensor, # (108,),
-                obs.dealer_position_tensor, # (4,)
+                obs.dealer_position_tensor, # (5,)
                 obs.trump_tensor, # (20,)
                 obs.declarer_position_tensor, # (5,)
-                obs.chaodi_times_tensor, # (4,)
+                obs.chaodi_times_tensor, # (5,)
                 obs.points_tensor, # (120,)
-                obs.individual_points_tensor, # (200, )
-                obs.team_tensor, # (15, )
                 obs.unplayed_cards_dynamic_tensor if self.dynamic_encoding else obs.unplayed_cards_tensor, # (108,)
-                current_moves, # (437,)
+                current_moves, # (437,) 432 + 5 (lead)
                 obs.kitty_dynamic_tensor if self.dynamic_encoding else obs.kitty_tensor, # (108,)
-                # obs.current_dominating_player_index, # (3,)
                 obs.dominates_all_tensor(cardset), # (1,)
-                obs.friend_card_tensor # (57,)
+                obs.friend_card_tensor, # (57,)
+                obs.individual_points_tensor, # (200, )
+                obs.teams_tensor # (15, )
             ])
 
             if self.use_oracle and training:
-                state_tensor = torch.cat([obs.oracle_cardsets, state_tensor])
+                state_tensor = torch.cat([obs.oracle_cardsets, state_tensor])  # oracle_cardsets: 4 players × 108 = 432
             elif self.use_oracle:
-                state_tensor = torch.cat([torch.zeros(108 * 3), state_tensor])
+                state_tensor = torch.cat([torch.zeros(432), state_tensor])  # 4 other players × 108 = 432
 
             if self.dynamic_encoding:
                 x_batch[i] = torch.cat([state_tensor, ac.dynamic_tensor(obs.dominant_suit, obs.dominant_rank)])

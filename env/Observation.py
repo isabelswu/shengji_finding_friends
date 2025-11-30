@@ -48,20 +48,25 @@ class Observation:
     def dominant_suit(self):
         return self.declaration.suit if self.declaration else TrumpSuit.XJ
 
+    # Mod for ff
     @property
     def points_tensor(self):
-        """Returns a (120,) tensor representing the current point situation. First 40 values is for the defender team, second 40 for the opponent team, third 40 for the unknown players.
+        """Returns a (120,) tensor representing the current team-wide point situation. First 40 values is for the defender team, second 40 for the opponent team, third 40 for the unknown players.
         Unknown points zeroed out after friend made public."""
         defender_points_tensor = torch.zeros(40)
         opponent_points_tensor = torch.zeros(40)
         unknown_points_tensor = torch.zeros(40)
         defender_points_tensor[:(self.defender_points // 5)] = 1
-        opponent_points_tensor[:(self.opponent_points // 5)] = 1
-        if self.unknown_points is not None:
-            assert not self.friend_card.public
+        # if self.opponent_points is not None:
+        if self.friend_card.public and self.opponent_points is not None:
+            opponent_points_tensor[:(self.opponent_points // 5)] = 1
+        elif self.unknown_points is not None:
             unknown_points_tensor[:(self.unknown_points // 5)] = 1
+        assert (self.opponent_points is None and self.unknown_points is not None
+                or self.opponent_points is not None and self.unknown_points is None) 
         return torch.cat([defender_points_tensor, opponent_points_tensor, unknown_points_tensor])
     
+    # Mod for ff
     @property
     def individual_points_tensor(self):
         "Returns a (200,) tensor representing individual points for each of the 5 players relative to the current player. Zeroed out after friend made public."
@@ -76,6 +81,7 @@ class Observation:
                 individual_tensor = torch.cat([individual_tensor, current_tensor])
             return individual_tensor
     
+    # Mod for ff
     @property
     def teams_tensor(self):
         """Returns a (15,) tensor representing team membership. 3 sets of 5 values where the 1st, 2nd, and 3rd
@@ -92,17 +98,19 @@ class Observation:
                 else:
                     opponent_tensor[i] = 1
             else: 
-                if pos == self.dealer_position:
+                if pos == self.dealer:
                     defender_tensor[i] = 1
                 else:
                     unknown_tensor[i] = 1
             return torch.cat([defender_tensor, opponent_tensor, unknown_tensor])
     
+    # Mod for ff
     @property
     def friend_card_tensor(self):
         """Returns information about the freind card. Shape: (57,)"""
         return self.friend_card.tensor
     
+    # Mod for ff
     @property
     def dealer_position_tensor(self):
         "Returns a (5,) one-hot tensor representing the dealer's position relative to the player."
@@ -113,6 +121,7 @@ class Observation:
         pos[index] = 1
         return pos
     
+    # Mod for ff
     @property
     def declarer_position_tensor(self):
         "Returns a (5,) one-hot tensor representing the location of the declarer relative to self."
@@ -208,7 +217,7 @@ class Observation:
     
     @property
     def historical_moves_tensor(self):
-        "Returns two tensors of shape (20, 545), (437,) (update for 5 players) representing the historical rounds of the current game."
+        "Returns two tensors of shape (15, 545), (437,) (update for 5 players) representing the historical rounds of the current game."
         # For 5 players: 5 position indicators + 5 * 108 card tensors = 545 per round
         history_tensor = torch.zeros((min(15, len(self.round_history)), 5 + 5 * 108))
         for i, (pos, round) in enumerate(self.round_history[-self.historical_rounds - 1:]):

@@ -9,14 +9,13 @@ class DeclarationModel(nn.Module):
     def __init__(self) -> None:
         super().__init__()
 
-        # self.fc1 = nn.Linear(172 + 7, 256)
-        self.fc1 = nn.Linear(193, 256)
+        self.fc1 = nn.Linear(186 + 7, 256)  # (186,) state + (7,) DeclareAction
         self.fc2 = nn.Linear(256, 256)
         self.fc3 = nn.Linear(256, 1)
 
     def forward(self, x: torch.Tensor):
         """
-        Performs the forward pass of declaration reward prediction. The input tensor should have shape (B, 179), where B is the batch dimension. The first 172 values are for the observation, and last 7 are for the action.
+        Performs the forward pass of declaration reward prediction. The input tensor should have shape (B, 193), where B is the batch dimension. The first 186 values are for the observation, and last 7 are for the action.
         """
         x = self.fc1(x)
         x = torch.relu(x)
@@ -32,14 +31,14 @@ class KittyModel(nn.Module):
 
         self.dynamic_kitty = dynamic_kitty
         self.single_card_embedding = nn.Embedding(54, 54)
-        self.fc1 = nn.Linear(172 + 54, 256)
+        self.fc1 = nn.Linear(186 + 54, 256)  # (186,) state + (54,) PlaceKittyAction
         self.fc2 = nn.Linear(256, 256)
         self.fc3 = nn.Linear(256, 256)
         self.fc4 = nn.Linear(256, 1)
     
     def forward(self, x: torch.Tensor, card: torch.Tensor):
         """
-        Performs the forward pass of kitty placement reward prediction. The input tensors should have shape (B, 172) and (B,), where B is the batch dimension. The first 172 values are for the observation, and the last B values are the indexes of the card to discard.
+        Performs the forward pass of kitty placement reward prediction. The input tensors should have shape (B, 186) and (B,), where B is the batch dimension. The first 186 values are for the observation, and the last B values are the indexes of the card to discard.
         """
 
         if self.dynamic_kitty:
@@ -123,18 +122,18 @@ class KittyArgmaxModel(nn.Module):
         return self.softmax(x)
 
 class NameModel(nn.Module):
-    "Name model's observation"
+    "Name model's observation: same state tensor as Declare and Kitty models"
     def __init__(self) -> None:
         super().__init__()
 
-        self.fc1 = nn.Linear(172 + 57, 256)
+        self.fc1 = nn.Linear(186 + 57, 256)
         self.fc2 = nn.Linear(256, 256)
         self.fc3 = nn.Linear(256, 256)
         self.fc4 = nn.Linear(256, 1)
 
     def forward(self, x: torch.Tensor):
         """
-        Performs the forward pass of declaration reward prediction. The input tensor should have shape (B, 229), where B is the batch dimension. The first 172 values are for the observation, and last 57 are for the action.
+        Performs the forward pass of friend naming reward prediction. The input tensor should have shape (B, 229), where B is the batch dimension. The first 172 values are for the observation, and last 57 are for the action.
         """
         x = self.fc1(x)
         x = torch.relu(x)
@@ -150,14 +149,14 @@ class ChaodiModel(nn.Module):
     def __init__(self) -> None:
         super().__init__()
 
-        self.fc1 = nn.Linear(178, 256)
+        self.fc1 = nn.Linear(186 + 6, 256)
         self.fc2 = nn.Linear(256, 256)
         self.fc3 = nn.Linear(256, 256)
         self.fc4 = nn.Linear(256, 1)
 
     def forward(self, x: torch.Tensor):
         """
-        Performs the forward pass of chaodi decision reward prediction. The input tensor should have shape (B, 178), where B is the batch dimension. The first 172 values are for the observation, and the last 6 values are the action.
+        Performs the forward pass of chaodi decision reward prediction. The input tensor should have shape (B, 192), where B is the batch dimension. The first 186 values are for the observation, and the last 6 values are the action.
         """
         x = self.fc1(x)
         x = torch.relu(x)
@@ -171,7 +170,7 @@ class ChaodiModel(nn.Module):
 class MainModel(nn.Module):
     """
     The main model's observation includes:
-        - The player's perceived cardsets for all players based on incomplete information (432)
+        - The player's perceived cardsets for all players based on incomplete information (540+5)
         - The player's position relative to the dealer 4
         - The current declaration 7
         - The position of the current declaration 4
@@ -188,10 +187,10 @@ class MainModel(nn.Module):
         self.use_oracle = use_oracle
         self.lstm = nn.LSTM(545, 256, batch_first=True)
         if use_oracle:
-            self.fc1 = nn.Linear(1727 + 256, 1291)
+            self.fc1 = nn.Linear(1297 + 432 + 256, 1297)  # 1297 (state+action) + 432 (oracle) + 256 (LSTM) = 1985
         else:
-            self.fc1 = nn.Linear(1727 - 3 * 108 + 256, 1291)
-        self.fc2 = nn.Linear(1291, 512)
+            self.fc1 = nn.Linear(1297 + 256, 1297)  # 1297 (state+action) + 256 (LSTM) = 1553
+        self.fc2 = nn.Linear(1297, 512)
         self.fc_rest = nn.Sequential(
             nn.Linear(512, 512),
             nn.ReLU(),
@@ -233,9 +232,9 @@ class ValueModel(nn.Module):
         super().__init__()
 
         self.lstm = nn.LSTM(545, 256, batch_first=True)
-        self.fc1 = nn.Linear(1726 - 4 * 108 + 256, 1291)
+        self.fc1 = nn.Linear(1726 - 4 * 108 + 256, 1297)
         self.fc2 = nn.Sequential(
-            nn.Linear(1291, 512),
+            nn.Linear(1297, 512),
             nn.ReLU(),
             nn.Linear(512, 512)
         )

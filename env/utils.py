@@ -98,14 +98,14 @@ class Ordinality(str, Enum):
 
 class FriendCard:
     "Contains information about the named friend card."
-    def __init__(self, suit: CardSuit, rank: int, ord: Ordinality):
+    def __init__(self, suit: CardSuit, rank: int, ordinality: Ordinality):
         self.suit = suit
         self.rank = rank
-        self.ord = ord
+        self.ordinality = ordinality
         self.times_played = 0
 
     def __repr__(self) -> str:
-        return f"FriendCard({self.ord} {self.suit} {self.rank})"
+        return f"FriendCard({self.ordinality} {self.suit} {self.rank})"
 
     @property
     def card(self):
@@ -113,10 +113,11 @@ class FriendCard:
 
     @property
     def tensor(self):
-        "Return a fixed size binary tensor of shape (57,) representing the friend card (54-jokers), ord (binary feature), times played (3 values for 0, 1, 2 instances), and whether friend is public."
+        "Return a fixed size binary tensor of shape (57,) representing the friend card (54-jokers), ord (binary feature 0 for first, 1 for second), times played (3 values for 0, 1, 2 instances), and whether friend is public."
         rep = torch.zeros(57) 
+        assert(self.card != 'XJ' and self.card != 'DJ') # Trumps can't be declared as friend
         rep[ORDERING_INDEX[self.card]] = 1
-        rep[52] = int(self.ord == Ordinality.SECOND)
+        rep[52] = int(self.ordinality == Ordinality.SECOND)
         rep[53 + self.times_played] = 1
         rep[56] = int(self.public)
         return rep
@@ -124,8 +125,8 @@ class FriendCard:
     @property
     def public(self):
         "Whether friend card has been played and teams publicly determined."
-        return (self.ord == Ordinality.FIRST and self.times_played >= 1 or 
-                self.ord == Ordinality.SECOND and self.times_played == 2)
+        return (self.ordinality == Ordinality.FIRST and self.times_played >= 1 or 
+                self.ordinality == Ordinality.SECOND and self.times_played == 2)
 
 def abs_positions_excluding(excluded: List[AbsolutePosition]):
     all_positions = AbsolutePosition.in_order()

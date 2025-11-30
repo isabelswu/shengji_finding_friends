@@ -48,15 +48,15 @@ class Game:
         self.initial_declaration_position: AbsolutePosition = None # Record the position of the first player that started the declaration round while drawing cards
         self.is_initial_game = dealer_position is None # Whether overriding the declaration lets the overrider becomes the dealer.
         self.dealer_position = dealer_position # Position of the dealer. At the start of game 1, the dealer is not determined yet.
-        self.unknown_points = 0  # Multiples of 5, None after friend public
-        self.opponent_points = None # None until friend public
+        self.unknown_points = 0  # Multiples of 5, 0 after friend public
+        self.opponent_points = None # 0 until friend public
         self.defender_points = 0 # Dealer's points until friend public
         self.game_ended = False
         self.kitty_multiplier = None
 
         # Finding friends fields
         self.friend_card: FriendCard = None 
-        self.unknown_team: List[AbsolutePosition] = [] # All players but dealer before friend becomes public
+        # self.unknown_team: List[AbsolutePosition] = [] # All players but dealer before friend becomes public
         self.defender_team: List[AbsolutePosition] = [] # Dealer and friend
         self.opponent_team: List[AbsolutePosition] = [] # Remaining players
         self.individual_points = {  # Individual points collected before teams determined
@@ -77,7 +77,7 @@ class Game:
         self.enable_chaodi = enable_chaodi
         self.current_chaodi_turn: AbsolutePosition = None
         self.initial_chaodi_position: AbsolutePosition = None
-        self.chaodi_times = [0, 0, 0, 0] # In the order N, W, S, E
+        self.chaodi_times = [0, 0, 0, 0, 0] # In the order N, W, S, E
 
         # Combo mode
         self.enable_combos = enable_combos
@@ -110,20 +110,20 @@ class Game:
 
         # Compute actions
         actions: List[Action] = []
-        print("--------------------------------")
+        # print("--------------------------------")
         if self.stage == Stage.declare_stage: # Stage 1: drawing cards phase
-            print("000 - Draw cards phase")
+            # print("000 - Draw cards phase")
             if not self.is_warmup_game:
                 for suit, level in self.hands[position].trump_declaration_options(self.dominant_rank).items():
                     if not self.declarations or self.declarations[-1].level < level and (self.declarations[-1].suit == suit or self.declarations[-1].absolute_position != position):
                         actions.append(DeclareAction(Declaration(suit, level, position)))
             actions.append(DontDeclareAction())
-        elif self.hands[position].size > 25: # Stage 2: choosing the kitty
-            print("000 - Choose kitty")
+        elif self.hands[position].size > 20: # Stage 2: choosing the kitty, (108 - 8) / 5 cards per player
+            # print("000 - Choose kitty")
             for card, count in self.hands[position]._cards.items():
                 if count > 0: actions.append(PlaceKittyAction(card, count))
         elif self.current_chaodi_turn == position:
-            print("000 - Chaodi")
+            # print("000 - Chaodi")
             # Chaodi
             if self.enable_chaodi and self.declarations:
                 for suit, level in self.hands[position].trump_declaration_options(self.dominant_rank).items():
@@ -133,23 +133,18 @@ class Game:
             actions.append(DontChaodiAction())
         elif self.stage == Stage.name_stage: # Stage 3: name friend card phase
             assert position == self.dealer_position, "Only dealer acts in naming stage"
-            print("000 - Name friend card")
+            # print("000 - Name friend card")
             non_dominant_suits = [CardSuit.CLUB, CardSuit.SPADE, CardSuit.HEART, CardSuit.DIAMOND]
-            if self.dominant_suit == TrumpSuit.CLUB:
-                non_dominant_suits.remove(CardSuit.CLUB)
-            elif self.dominant_suit == TrumpSuit.SPADE:
-                non_dominant_suits.remove(CardSuit.SPADE)
-            elif self.dominant_suit == TrumpSuit.HEART:
-                non_dominant_suits.remove(CardSuit.HEART)
-            elif self.dominant_suit == TrumpSuit.DIAMOND:
-                non_dominant_suits.remove(CardSuit.DIAMOND)
+            if self.dominant_suit != TrumpSuit.XJ and self.dominant_suit != TrumpSuit.DJ:
+                non_dominant_suits.remove(self.dominant_suit)
             for suit in non_dominant_suits:
                 for rank in range(2, 15):
                     if rank != self.dominant_rank:
                         for ord in [Ordinality.FIRST, Ordinality.SECOND]:
                             actions.append(NameFriendCard(FriendCard(suit, rank, ord)))
         elif self.round_history[-1][0] == position:
-            print("000 - Else case" + str(len(self.round_history)))
+            # print("000 - Else case" + str(len(self.round_history)))
+            # print("000 - Else case")
             # In combo alternation mode, players at positions East or West cannot play combo moves
             if not self.enable_combos or not self.round_history[-1][1]:
                 ban_combos = self.combo_alternation and position in (AbsolutePosition.EAST, AbsolutePosition.WEST)
@@ -167,12 +162,12 @@ class Game:
                         actions.append(AppendLeadAction(current_action, move))
                 actions.append(EndLeadAction(MoveType.Combo(current_action)))
         else:
-            print("000 - Else else case")
+            # print("000 - Else else case")
             # Combo is a catch-all type if we don't know the composition of the cardset
             for cardset in self.hands[position].get_matching_moves(MoveType.Combo(self.round_history[-1][1][0]), self.dominant_suit, self.dominant_rank):
                 actions.append(FollowAction(cardset))
-        print(self.stage)
-        print("--------------------------------")
+        # print(self.stage)
+        # print("--------------------------------")
         assert actions, f"Agent {position} has no action to choose from!"
 
         relative_points: dict[RelativePosition, int] = {}
@@ -236,15 +231,15 @@ class Game:
     def update_find_friends(self, action: Action, player_position: AbsolutePosition) -> None:
         """For EndAction or FollowAction, if the friend has not been made public, update ordinality
            of friend card if it was played. If friend public, then determine teams and pool individual points."""
-        if not self.friend_card.public and action.move.cardset.has_card(self.friend_card.card):
+        if not self.friend_card.public and action.cardset.has_card(self.friend_card.card):
             self.friend_card.times_played += 1 # Update
             if self.friend_card.public:
-                self.unknown_team = None
+                # self.unknown_team = None
                 self.defender_team, self.opponent_team = determine_teams(player_position, self.dealer_position)
                 if len(self.defender_team) == 1:
                     logging.info(f"Dealer played friend card in lead. Defender alone: {self.defender_team}")
                 else:
-                    logging.info(f"Friend card played by {player_position} in lead. Teams: Defenders={self.defender_team}, Attackers={self.attacker_team}")
+                    logging.info(f"Friend card played by {player_position} in lead. Teams: Defenders={self.defender_team}, Attackers={self.opponent_team}")
                 self.pool_team_points()
 
     def run_action(self, action: Action, player_position: AbsolutePosition) -> Tuple[AbsolutePosition, float]:
@@ -382,7 +377,7 @@ class Game:
             self.kitty_owner = player_position
             logging.info(f"Player {player_position} chose to chaodi using {action.declaration.suit}")
             self.stage = Stage.kitty_stage
-            self.chaodi_times[['N', 'W', 'S', 'E'].index(player_position)] += 1
+            self.chaodi_times[['1', '2', '3', '4', '5'].index(player_position.value)] += 1
             if action.declaration.level == 3:
                 self.current_chaodi_turn = None
                 return player_position, 0
@@ -397,7 +392,7 @@ class Game:
             logging.info(f"Dealer {player_position} named friend card: {self.friend_card}")
             # discourage players from naming cards in the kitty or in their hand?
 
-            self.unknown_team = AbsolutePosition.in_order().remove(self.dealer_position)
+            # self.unknown_team = AbsolutePosition.in_order().remove(self.dealer_position)
             self.defender_team = [self.dealer_position]
             self.stage = Stage.main_stage
             if not self.round_history:
@@ -408,11 +403,13 @@ class Game:
             logging.debug(f"Round {len(self.round_history)}: {player_position.value} places {action.move.cardset}")
             self.round_history[-1][1].append(action.move.cardset)
             self.consecutive_moves = 1
+            self.update_find_friends(action, player_position)
             return player_position, 0 # current player continues to place cards until EndLeadAction
         elif isinstance(action, AppendLeadAction):
             logging.debug(f"Round {len(self.round_history)}: {player_position.value} updates lead action to {action.move.cardset}")
             self.round_history[-1][1][0] = action.move.cardset
             self.consecutive_moves += 1
+            self.update_find_friends(action, player_position)
             return player_position, 0
         elif isinstance(action, EndLeadAction):
             logging.debug(f"Round {len(self.round_history)}: {player_position.value} leads with {action.move}")
@@ -505,7 +502,7 @@ class Game:
                     else:
                         # Determine teams if game ends with no friend found
                         logging.info("Game ended with no friend found. Dealer is the only defender.")
-                        self.unknown_team = None
+                        # self.unknown_team = None
                         self.opponent_team = abs_positions_excluding([self.dealer_position])
                         assert self.defender_team == [self.dealer_position]
                         self.pool_team_points()

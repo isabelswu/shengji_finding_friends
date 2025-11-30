@@ -209,7 +209,11 @@ class Simulation:
 
                 # For naming stage, the reward is not discounted
                 if is_defender(self.game_engine.dealer_position):
-                    self.naming_history[-1][2] += self.game_engine.final_defender_reward
+                    self.naming_history[-1] = (
+                        self.naming_history[-1][0], 
+                        self.naming_history[-1][1], 
+                        self.naming_history[-1][2] + self.game_engine.final_defender_reward
+                    )
 
                 for position in position_list:
                     # For kitty action, the reward is not discounted because each move is equally important
