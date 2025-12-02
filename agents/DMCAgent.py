@@ -172,7 +172,7 @@ class MainModule(DMCModule):
         self.sac = sac
         self.use_oracle = use_oracle
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        # self.log_alpha = torch.tensor(1.0).log().cuda()
+
         self.log_alpha = torch.nn.Parameter(torch.zeros((), device=device))
         # self.log_alpha.requires_grad = True
         self.alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=3e-4)

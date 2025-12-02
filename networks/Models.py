@@ -187,10 +187,10 @@ class MainModel(nn.Module):
         self.use_oracle = use_oracle
         self.lstm = nn.LSTM(545, 256, batch_first=True)
         if use_oracle:
-            self.fc1 = nn.Linear(1297 + 432 + 256, 1297)  # 1297 (state+action) + 432 (oracle) + 256 (LSTM) = 1985
+            self.fc1 = nn.Linear(1297 + 432 + 256, 1024)  # 1297 (state+action) + 432 (oracle) + 256 (LSTM) = 1985 → 1024
         else:
-            self.fc1 = nn.Linear(1297 + 256, 1297)  # 1297 (state+action) + 256 (LSTM) = 1553
-        self.fc2 = nn.Linear(1297, 512)
+            self.fc1 = nn.Linear(1297 + 256, 1024)  # 1297 (state+action) + 256 (LSTM) = 1553 → 1024
+        self.fc2 = nn.Linear(1024, 512)
         self.fc_rest = nn.Sequential(
             nn.Linear(512, 512),
             nn.ReLU(),
