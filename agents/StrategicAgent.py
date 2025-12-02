@@ -151,6 +151,11 @@ class MainModule(StageModule):
             else:
                 return random.choice(other_action_choices), None, None
 
+class NameModule(StageModule):
+    def act(self, obs: Observation, epsilon=None, training=True):
+        assert obs.stage == Stage.name_stage
+        return random.choice(obs.actions)
+
 class StrategicAgent(SJAgent):
     def __init__(self, name: str) -> None:
         super().__init__(name)
@@ -158,5 +163,6 @@ class StrategicAgent(SJAgent):
         self.declare_module = DeclarationModule()
         self.kitty_module = KittyModule()
         self.chaodi_module = ChaodiModule()
+        self.name_module = NameModule()
         self.main_module = MainModule()
 

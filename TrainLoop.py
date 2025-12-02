@@ -88,7 +88,7 @@ def evaluator(idx: int, player1: SJAgent, player2: SJAgent, enable_chaodi: bool,
             while eval_sim.step()[0]: pass
         # In Finding Friends, track defender vs opponent wins
         opponents_won = eval_sim.game_engine.opponent_points >= 80
-        winners, opponents = eval_sim.game_engine.opponent_team, eval_sim.game_engine.defender_team if opponents_won else eval_sim.game_engine.defender_team, eval_sim.game_engine.opponent_team
+        winners, opponents = eval_sim.game_engine.defender_team if opponents_won else eval_sim.game_engine.defender_team, eval_sim.game_engine.opponent_team
         eval_results_queue.put((
             winners,
             opponents,
@@ -210,7 +210,7 @@ def train(agent_type: str, games: int, model_folder: str, eval_only: bool, eval_
                 agent.learn_from_samples(main_batch, Stage.main_stage)
             agent.save_models_to_disk()
             # Need to add name_module
-            print('main loss:', np.mean(agent.main_module.train_loss_history), 'declare loss:', np.mean(agent.declare_module.train_loss_history), 'kitty loss:', np.mean(agent.kitty_module.train_loss_history), 'chaodi loss:', np.mean(agent.chaodi_module.train_loss_history), 'naming loss:', np.mean(agent.naming_module.train_loss_history))
+            print('main loss:', np.mean(agent.main_module.train_loss_history), 'declare loss:', np.mean(agent.declare_module.train_loss_history), 'kitty loss:', np.mean(agent.kitty_module.train_loss_history), 'chaodi loss:', np.mean(agent.chaodi_module.train_loss_history), 'naming loss:', np.mean(agent.name_module.train_loss_history))
             if agent.sac:
                 print("Current alpha:", agent.main_module.log_alpha.exp().cpu().item())
                 if isinstance(agent, DQNAgent):
@@ -289,7 +289,13 @@ def train(agent_type: str, games: int, model_folder: str, eval_only: bool, eval_
                 "iterations": iterations,
                 "win_counts": win_counts[AbsolutePosition.ONE] / sum(win_counts.values()),
                 "level_counts": level_counts[AbsolutePosition.ONE] / sum(level_counts.values()),
-                "avg_points": [np.mean(opposition_points[AbsolutePosition.ONE]), np.mean(opposition_points[1:])]
+                "avg_points": [
+                    np.mean(opposition_points[AbsolutePosition.ONE]), 
+                    np.mean(opposition_points[AbsolutePosition.TWO]),
+                    np.mean(opposition_points[AbsolutePosition.THREE]),
+                    np.mean(opposition_points[AbsolutePosition.FOUR]),
+                    np.mean(opposition_points[AbsolutePosition.FIVE]),
+                ]
             })
             with open(f'{model_folder}/stats.pkl', mode='w+b') as f:
                 pickle.dump(stats, f)

@@ -43,4 +43,5 @@ class RandomAgent(SJAgent):
         self.declare_module = RandomActorModule()
         self.kitty_module = RandomActorModule()
         self.chaodi_module = RandomActorModule()
+        self.name_module = RandomActorModule()
         self.main_module = RandomActorModule()

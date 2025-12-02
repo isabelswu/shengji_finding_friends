@@ -37,7 +37,7 @@ class SJAgent:
         self.name_module: StageModule = None
     
     def act(self, obs: Observation, epsilon=None, training=True):
-        assert self.declare_module is not None and self.kitty_module is not None and self.main_module is not None, "At least one required model is not loaded"
+        assert self.declare_module is not None and self.kitty_module is not None and self.name_module is not None and self.main_module is not None, "At least one required model is not loaded"
         if obs.stage == Stage.declare_stage:
             return self.declare_module.act(obs, epsilon, training)
         elif obs.stage == Stage.kitty_stage:
@@ -46,6 +46,7 @@ class SJAgent:
             assert self.chaodi_module is not None, "chaodi module must be configured when chaodi mode is turned on"
             return self.chaodi_module.act(obs, epsilon, training)
         elif obs.stage == Stage.name_stage:
+            assert self.name_module is not None, "name module must be configured when name stage is used"
             return self.name_module.act(obs, epsilon, training)
         elif obs.stage == Stage.main_stage:
             return self.main_module.act(obs, epsilon, training)
@@ -60,6 +61,7 @@ class SJAgent:
         elif stage == Stage.chaodi_stage:
             self.chaodi_module.learn_from_samples(samples)
         elif stage == Stage.name_stage:
+            assert self.name_module is not None, "name module must be configured when name stage is used"
             self.name_module.learn_from_samples(samples)
         elif stage == Stage.main_stage:
             self.main_module.learn_from_samples(samples)
