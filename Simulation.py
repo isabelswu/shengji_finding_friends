@@ -125,7 +125,7 @@ class Simulation:
         if not self.game_engine.game_ended:
             observation = self.game_engine.get_observation(self.current_player)
             # use_player2 = self.eval_mode and self.player2 is not None
-            if self.eval_mode and observation.position == AbsolutePosition.TWO:
+            if self.eval_mode and observation.position != AbsolutePosition.ONE:
                 # In eval mode, player2 plays all but the first position
                 if self.game_engine.stage == Stage.declare_stage:
                     action = self.player2.act(observation, training=False)

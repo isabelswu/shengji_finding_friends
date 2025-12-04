@@ -86,9 +86,15 @@ def evaluator(idx: int, player1: SJAgent, player2: SJAgent, enable_chaodi: bool,
     while True:
         with torch.no_grad():
             while eval_sim.step()[0]: pass
-        # In Finding Friends, track defender vs opponent wins
-        opponents_won = eval_sim.game_engine.opponent_points >= 80
-        winners, opponents = eval_sim.game_engine.defender_team if opponents_won else eval_sim.game_engine.defender_team, eval_sim.game_engine.opponent_team
+        # In Finding Friends, track defender vs opponent wins (opponents win if >= 80 points)
+        if eval_sim.game_engine.opponent_points >= 80:
+            winners = eval_sim.game_engine.opponent_team
+            opponents = eval_sim.game_engine.defender_team
+        else:
+            winners = eval_sim.game_engine.defender_team
+            opponents = eval_sim.game_engine.opponent_team
+
+
         eval_results_queue.put((
             winners,
             opponents,
