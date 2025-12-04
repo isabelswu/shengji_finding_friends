@@ -56,6 +56,9 @@ class Simulation:
         self.learn_from_eval = learn_from_eval
         self.player1 = player1 # only this player is being trained
         self.player2 = player2
+        self.player1_positions = {AbsolutePosition.ONE}
+        self.player2_positions = {}
+        self.agents_determined = False
         self.epsilon = epsilon
         self.combo_penalty = combo_penalty
 
@@ -120,12 +123,54 @@ class Simulation:
             self.current_player = self.game_engine.start_game()
             return True, None
         
-        # We set trained model to always be AbsolutePosition.ONE
-        
+        # We set AbsolutePosition.ONE to always be the trained agents (DMC)
+        # We want ONE's teammates to always be trained agents
+        # Case 1: DMC is dealer
+            # All candidates are set to DMC agents, so defenders will all be DMC, 
+            # and at most one opponent will be DMC
+
+        # Case 2: DMC is not dealer
+            # Case A: DMC is candidate friend
+                # Dealer and one non candidate are set to DMC agent
+            # Case B: DMC is not candidate for friend
+                # All non candidates are set to DMC agents
+
+        if not self.agents_determined and self.game_engine.stage == Stage.main_stage:
+            self.agents_determined = True
+            # assert self.game_engine.dealer_position is not None and self.game_engine.friend_card is not None
+            friend_card = self.game_engine.friend_card.card
+            friend_candidates = set()
+            for pos, hand in self.game_engine.hands.items():
+                if hand.has_card(friend_card):
+                    friend_candidates.add(pos)
+            # assert(len(friend_candidates) == 1 or len(friend_candidates) == 2 or 
+                # len(friend_candidates) == 0 and self.game_engine.kitty.has_card(friend_card))
+            all_positions = set(AbsolutePosition.in_order())
+
+            if self.game_engine.dealer_position == AbsolutePosition.ONE:
+                # DMC is dealer, all friend candidates are set to DMC agents
+                self.player1_positions.update(friend_candidates)
+            else:
+                # DMC is not dealer, at most one friend candidate is set to DMC agent
+                if AbsolutePosition.ONE in friend_candidates:
+                    # ONE is candidate, set dealer and one non candidate to DMC agent
+                    self.player1_positions.add(self.game_engine.dealer_position)
+                    non_candidates = all_positions.difference(friend_candidates.union(self.player1_positions))
+                    if len(non_candidates) > 0:
+                        self.player1_positions.add(non_candidates.pop())
+                else:
+                    # ONE is not candidate, set the other non candidates to DMC agent
+                    self.player1_positions.update(all_positions.difference(friend_candidates.union(set(self.game_engine.dealer_position))))
+            self.player2_positions = all_positions.difference(self.player1_positions)
+            # assert (self.player1_positions.intersection(self.player2_positions) == set() and 
+            #     len(self.player1_positions) + len(self.player2_positions) == 5 and
+            #     self.player1_positions.union(self.player2_positions) == all_positions)
+
         if not self.game_engine.game_ended:
             observation = self.game_engine.get_observation(self.current_player)
-            # use_player2 = self.eval_mode and self.player2 is not None
-            if self.eval_mode and observation.position != AbsolutePosition.ONE:
+            player2_acts = (observation.position != AbsolutePosition.ONE and 
+                (self.game_engine.stage != Stage.main_stage or self.current_player in self.player2_positions)) 
+            if self.eval_mode and player2_acts:
                 # In eval mode, player2 plays all but the first position
                 if self.game_engine.stage == Stage.declare_stage:
                     action = self.player2.act(observation, training=False)
@@ -317,6 +362,10 @@ class Simulation:
         self.chaodi_history.clear()
         self.kitty_history.clear()
         self.naming_history.clear()
+
+        self.player1_positions = {AbsolutePosition.ONE}
+        self.player2_positions = {}
+        self.agents_determined = False
 
         # If reuse_old_deck, then re-play the game using the same hands
         if not self.game_engine.is_warmup_game and reuse_old_deck:
